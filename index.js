@@ -7,7 +7,7 @@ const cors = require("cors");
 const app = express();
 const port = process.env.PORT || 4000;
 
-app.use(cors());
+app.options('*', cors())
 
 app.get("/", (_req, res) => {
   res.send("Token Linear Vesting Grant list!");
