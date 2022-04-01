@@ -2,12 +2,14 @@ require("dotenv").config();
 
 const fs = require('fs');
 const express = require("express");
-const cors = require("cors");
 
 const app = express();
 const port = process.env.PORT || 4000;
 
-app.options('*', cors())
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  next();
+});
 
 app.get("/", (_req, res) => {
   res.send("Token Linear Vesting Grant list!");
