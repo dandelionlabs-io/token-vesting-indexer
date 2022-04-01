@@ -2,12 +2,12 @@ require("dotenv").config();
 
 const fs = require('fs');
 const express = require("express");
-// const cors = require("cors");
+const cors = require("cors");
 
 const app = express();
 const port = process.env.PORT || 4000;
 
-// app.use(cors());
+app.use(cors());
 
 app.get("/", (_req, res) => {
   res.send("DegenGang Grant list!");
