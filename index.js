@@ -10,7 +10,7 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 
 app.get("/", (_req, res) => {
-  res.send("DegenGang Grant list!");
+  res.send("Token Linear Vesting Grant list!");
 });
 
 app.get("/:poolName", async (_req, res) => {
