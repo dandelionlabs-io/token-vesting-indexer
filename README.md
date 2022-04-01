@@ -6,7 +6,9 @@ This repository contains the indexer that keep track the Stakeholders list to se
 
 - [Getting Started](#getting-started)
   - [Requirements](#requirements)
+  - [Restarting](#restarting)
 - [Troubleshooting](#troubleshooting)
+- [Collaborators](#collaborators)
 
 ## Getting Started
 
@@ -20,10 +22,19 @@ You will need node.js (12.\* or later) and npm installed to run it locally.
    - Replace `REMOTE_HTTP` with an INFURA or ALCHEMY url.
    - Add pools and duration in the file `./config/index.js`.
 4. Replace the `syncedBlockHeight` property value in `config/sync-status.json` with the Block Number of earlier Pool's deployed Transaction number.
-5. Clean the already added managers in the following lists:
-   - Clean the folder `./data`.
-6. Finally, run the bot `node sync.js`.
+5. Finally, run the bot `node index.js`.
+
+### Restarting
+
+1. Make sure you remove any `.json` files from the folder `./data`.
+2. Replace the `syncedBlockHeight` property value in `config/sync-status.json` with the Block Number of earlier Pool's deployed Transaction number.
 
 ## Troubleshooting
 
 If you have any questions, send them along with a hi to [hello@dandelionlabs.io](mailto:hello@dandelionlabs.io).
+
+## Collaborators
+Anyone can collaborate and improve this repository. Special thanks to all of those who contributed to the creation of it.
+
+1. Medet Ahmetson <admin@blocklords.io>
+2. Leon Acosta <leon@dandelionlabs.io>
