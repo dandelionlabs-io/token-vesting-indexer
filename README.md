@@ -2,14 +2,13 @@
 
 This repository contains the indexer that keep track the Stakeholders list to serve in the Manager's admin application for the Token Linear Vesting product.
 
-Collaborators || Medet Ahmetson <admin@blocklords.io>
-
 ## About the source code
 
 - [Getting Started](#getting-started)
   - [Requirements](#requirements)
   - [Restarting](#restarting)
 - [Troubleshooting](#troubleshooting)
+- [Collaborators](#collaborators)
 
 ## Getting Started
 
@@ -33,3 +32,9 @@ You will need node.js (12.\* or later) and npm installed to run it locally.
 ## Troubleshooting
 
 If you have any questions, send them along with a hi to [hello@dandelionlabs.io](mailto:hello@dandelionlabs.io).
+
+## Collaborators
+Anyone can collaborate and improve this repository. Special thanks to all of those who contributed to the creation of it.
+
+1. Medet Ahmetson <admin@blocklords.io>
+2. Leon Acosta <leon@dandelionlabs.io>
