@@ -2,6 +2,8 @@
 
 This repository contains the indexer that keep track the Stakeholders list to serve in the Manager's admin application for the Token Linear Vesting product.
 
+Collaborators || Medet Ahmetson <admin@blocklords.io>
+
 ## About the source code
 
 - [Getting Started](#getting-started)
