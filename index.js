@@ -1,13 +1,13 @@
 require("dotenv").config();
 
-const fs = require('fs');
+const fs = require("fs");
 const express = require("express");
 
 const app = express();
 const port = process.env.PORT || 4000;
 
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  res.header("Access-Control-Allow-Origin", "*");
   next();
 });
 
@@ -18,10 +18,19 @@ app.get("/", (_req, res) => {
 app.get("/:poolName", async (_req, res) => {
   const { poolName } = _req.params;
   try {
-    res.send(JSON.parse(fs.readFileSync(`./data/${poolName}.json`, 'utf-8')));
+    res.send(JSON.parse(fs.readFileSync(`./data/${poolName}.json`, "utf-8")));
   } catch (error) {
     console.log(error);
     res.status(500).send("Error fetching the pool, probably doesn't exist");
+  }
+});
+
+app.get("/config/pools", async (_req, res) => {
+  try {
+    res.send(JSON.parse(fs.readFileSync(`./config/pool-time.json`, "utf-8")));
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error, file does not exist");
   }
 });
 

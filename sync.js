@@ -9,19 +9,19 @@
  * Following additional json files are required:
  * @requires vesting.json     - the ABI of the smartcontract
  */
-require('dotenv').config()
+require("dotenv").config();
 
-const fs          = require('fs');                // to fetch the abi of smartcontract
-const blockchain    = require('./blockchain');
-const { logSync }   = require('./logger');
+const fs = require("fs"); // to fetch the abi of smartcontract
+const blockchain = require("./blockchain");
+const { logSync } = require("./logger");
 
 /// Create the smartcontract instace using the ABI json and the Smartcontract address
-const { pools } = require('./config/index');
+const { pools } = require("./config/index");
 
-const ABI = JSON.parse(fs.readFileSync('./vesting.json', 'utf-8'));
+const ABI = JSON.parse(fs.readFileSync("./vesting.json", "utf-8"));
 
 // Initiation of web3 and contract
-let web3          = blockchain.reInit();
+let web3 = blockchain.reInit();
 
 pools.forEach((value, key) => {
   value.push(blockchain.loadContract(web3, value[0], ABI));
@@ -36,16 +36,18 @@ pools.forEach((value, key) => {
  * - Loading up the Configuration. (Most likely code bug)
  * - Updating the data on File system and Database. (Most likely resources are busy)
  */
- const SyncByUpdate = async () => {
+const SyncByUpdate = async () => {
+  await updatePoolTime();
+
   /// Getting configuration
   let conf = await loadConf();
 
   while (true === true) {
-    let {latestBlockNum, syncedBlockHeight} = await blockHeights(conf);
+    let { latestBlockNum, syncedBlockHeight } = await blockHeights(conf);
     if (isNaN(parseInt(latestBlockNum))) {
       console.log("Failed to connect to web3.");
       web3 = blockchain.reInit();
-      await timeOut(conf['sleepInterval']);
+      await timeOut(conf["sleepInterval"]);
       continue;
     }
 
@@ -54,7 +56,7 @@ pools.forEach((value, key) => {
       console.log(`${currentTime()}: ${syncedBlockHeight} > ${latestBlockNum}`);
 
       // Set to the latest block number from the blockchain.
-      conf['syncedBlockHeight'] = latestBlockNum;
+      conf["syncedBlockHeight"] = latestBlockNum;
       await saveConf(conf);
     }
 
@@ -67,7 +69,7 @@ pools.forEach((value, key) => {
 
     /// if "from" and "to" are matching, database synced up to latest block.
     /// Wait for appearance of a new block
-    await timeOut(conf['sleepInterval']);
+    await timeOut(conf["sleepInterval"]);
   }
 };
 
@@ -76,24 +78,24 @@ pools.forEach((value, key) => {
  *
  * We use a separated function, to catch the errors. And throw error in standard way as Sync.js accepts.
  */
-let blockHeights = async function(conf) {
+let blockHeights = async function (conf) {
   let latestBlockNum;
   let syncedBlockHeight;
 
   /// "from" block height
-  syncedBlockHeight = conf['syncedBlockHeight'];
+  syncedBlockHeight = conf["syncedBlockHeight"];
   if (isNaN(syncedBlockHeight)) {
-    throw new Error('syncedBlockHeight must be integer')
+    throw new Error("syncedBlockHeight must be integer");
   }
 
   /// "to" block height
   try {
     latestBlockNum = await web3.eth.getBlockNumber();
   } catch (error) {
-    return {undefined, syncedBlockHeight};
+    return { undefined, syncedBlockHeight };
   }
 
-  return {latestBlockNum, syncedBlockHeight};
+  return { latestBlockNum, syncedBlockHeight };
 };
 
 /**
@@ -103,51 +105,52 @@ let blockHeights = async function(conf) {
  * @param syncedBlockHeight
  * @returns
  */
-let log = async function(conf, latestBlockNum, syncedBlockHeight) {
-    /// Some blockchains sets the limit to the range of blocks when fetching the logs.
-    /// In order to avoid it, we are iterating that range through the loop by limited range blocks.
-    /// The limited range block is called offset in our script.
+let log = async function (conf, latestBlockNum, syncedBlockHeight) {
+  /// Some blockchains sets the limit to the range of blocks when fetching the logs.
+  /// In order to avoid it, we are iterating that range through the loop by limited range blocks.
+  /// The limited range block is called offset in our script.
 
-    let from, to;
-    const offset = conf['offset'];
-    const iterationCount = Math.max(0, (latestBlockNum - syncedBlockHeight) / offset);
+  let from, to;
+  const offset = conf["offset"];
+  const iterationCount = Math.max(
+    0,
+    (latestBlockNum - syncedBlockHeight) / offset
+  );
 
-    from = syncedBlockHeight;
-    if ((latestBlockNum - syncedBlockHeight) > offset) {
-      to = offset + syncedBlockHeight;
-    } else {
-      to = latestBlockNum;
-    }
+  from = syncedBlockHeight;
+  if (latestBlockNum - syncedBlockHeight > offset) {
+    to = offset + syncedBlockHeight;
+  } else {
+    to = latestBlockNum;
+  }
 
-    for (let i = 0; i < iterationCount; i++) {
+  for (let i = 0; i < iterationCount; i++) {
+    let poolCount = 0;
+    pools.forEach(async (value, key) => {
+      await processEvents(value[2], key, conf, from, to);
+      poolCount++;
+      if (pools.size !== poolCount) await timeOut(1);
+    });
 
-      let poolCount = 0;
-      pools.forEach(async (value, key) => {
-        await processEvents(value[2], key, conf, from, to);
-        poolCount++;
-        if (pools.size !== poolCount)
-          await timeOut(1);
-      })
+    from += offset;
+    to = from + offset > latestBlockNum ? latestBlockNum : from + offset;
 
-      from += offset;
-      to = (from + offset > latestBlockNum) ? latestBlockNum : from + offset;
-
-      conf['syncedBlockHeight'] = to;
-      await saveConf(conf);
-    }
+    conf["syncedBlockHeight"] = to;
+    await saveConf(conf);
+  }
 };
 
-let processEvents = async function(pool, dataName, conf, from, to) {
+let processEvents = async function (pool, dataName, conf, from, to) {
   let poolEvents;
   try {
-    poolEvents = await pool.getPastEvents('allEvents', {
+    poolEvents = await pool.getPastEvents("allEvents", {
       fromBlock: from,
-      toBlock: to
+      toBlock: to,
     });
   } catch (error) {
     console.log(`${currentTime()}: event error:`);
     console.log(error.toString());
-    await timeOut(conf['sleepInterval']);
+    await timeOut(conf["sleepInterval"]);
     process.exit(0);
     // Maybe to reinit the Web3?
   }
@@ -155,44 +158,74 @@ let processEvents = async function(pool, dataName, conf, from, to) {
   /// Exit from the script, to restart it by docker, if failed to log the events into the blockchain
   if (poolEvents.length > 0) {
     try {
-      await logSync(dataName, poolEvents, web3, process.env.PRIVATE_SALE_DURATION);
+      await logSync(
+        dataName,
+        poolEvents,
+        web3,
+        process.env.PRIVATE_SALE_DURATION
+      );
     } catch (error) {
       console.error(`${currentTime()}: log error to database...`);
       console.error(error);
-      process.exit()
+      process.exit();
     }
   }
-}
+};
 
-let loadConf = async function() {
+let loadConf = async function () {
   try {
-    return JSON.parse(fs.readFileSync('./config/sync-status.json', 'utf-8'));
+    return JSON.parse(fs.readFileSync("./config/sync-status.json", "utf-8"));
   } catch (error) {
     throw new Error(`Can not read config/sync-status.json`);
   }
-}
+};
 
-let saveConf = async function(conf) {
+let saveConf = async function (conf) {
   try {
-    fs.writeFileSync('./config/sync-status.json', JSON.stringify(conf));
+    fs.writeFileSync("./config/sync-status.json", JSON.stringify(conf));
   } catch (error) {
     console.error(error);
-    process.exit()
+    process.exit();
   }
-}
+};
 
 /**
  * @description Sleeps the code for few seconds
  * @param {Integer} seconds interval to wait before waiting
  * @returns
  */
-const timeOut = async function(seconds) {
-    return new Promise(resolve => setTimeout(resolve, seconds * 1000));
-}
+const timeOut = async function (seconds) {
+  return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+};
 
-const currentTime = function() {
+const currentTime = function () {
   let currentdate = new Date();
-  return `${currentdate.getDate()}/${(currentdate.getMonth()+1)}/${currentdate.getFullYear()} ${currentdate.getHours()}:${currentdate.getMinutes()}:${currentdate.getSeconds()}`;
+  return `${currentdate.getDate()}/${
+    currentdate.getMonth() + 1
+  }/${currentdate.getFullYear()} ${currentdate.getHours()}:${currentdate.getMinutes()}:${currentdate.getSeconds()}`;
+};
+
+/**
+ * @description This function gets startTime and endTime for each vesting pool from blockchain
+ * and saves it to ./config/pool-time.js
+ */
+const updatePoolTime = async () => {
+  const path = `./config/pool-time.json`;
+  let conf = JSON.parse(fs.readFileSync(path, "utf-8"));
+  const poolNames = Object.keys(conf);
+
+  const contracts = poolNames.map((x) => pools.get(x)[2]);
+
+  const values = await Promise.all(
+    contracts.map((x) => x.methods.pool().call())
+  );
+
+  values.forEach((x, i) => {
+    conf[poolNames[i]].start = x.startTime;
+    conf[poolNames[i]].end = x.endTime;
+  });
+
+  fs.writeFileSync(path, JSON.stringify(conf), "utf-8");
 };
 
 module.exports.SyncByUpdate = SyncByUpdate;
