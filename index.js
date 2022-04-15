@@ -27,7 +27,7 @@ app.get("/:poolName", async (_req, res) => {
 
 app.get("/config/pools", async (_req, res) => {
   try {
-    res.send(JSON.parse(fs.readFileSync(`./config/pool-time.json`, "utf-8")));
+    res.send(JSON.parse(fs.readFileSync(`./config/poolsConfig.json`, "utf-8")));
   } catch (error) {
     console.log(error);
     res.status(500).send("Error, file does not exist");

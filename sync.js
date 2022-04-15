@@ -15,17 +15,20 @@ const fs = require("fs"); // to fetch the abi of smartcontract
 const blockchain = require("./blockchain");
 const { logSync } = require("./logger");
 
-/// Create the smartcontract instace using the ABI json and the Smartcontract address
-const { pools } = require("./config/index");
-
-const ABI = JSON.parse(fs.readFileSync("./vesting.json", "utf-8"));
-
 // Initiation of web3 and contract
 let web3 = blockchain.reInit();
 
-pools.forEach((value, key) => {
-  value.push(blockchain.loadContract(web3, value[0], ABI));
-});
+const factory_abi = JSON.parse(fs.readFileSync("./factory.json", "utf-8"));
+const factory = blockchain.loadContract(
+  web3,
+  process.env.FACTORY_CONTRACT_ADDRESS,
+  factory_abi
+);
+
+/// Create the smartcontract instace using the ABI json and the Smartcontract address
+const pools = new Map();
+
+const ABI = JSON.parse(fs.readFileSync("./vesting.json", "utf-8"));
 
 /**
  * @description This function reads the conf to get the latest updated block height.
@@ -37,7 +40,9 @@ pools.forEach((value, key) => {
  * - Updating the data on File system and Database. (Most likely resources are busy)
  */
 const SyncByUpdate = async () => {
-  await updatePoolTime();
+  // await updatePoolTime();
+
+  await getPools();
 
   /// Getting configuration
   let conf = await loadConf();
@@ -205,27 +210,39 @@ const currentTime = function () {
   }/${currentdate.getFullYear()} ${currentdate.getHours()}:${currentdate.getMinutes()}:${currentdate.getSeconds()}`;
 };
 
-/**
- * @description This function gets startTime and endTime for each vesting pool from blockchain
- * and saves it to ./config/pool-time.js
- */
-const updatePoolTime = async () => {
-  const path = `./config/pool-time.json`;
-  let conf = JSON.parse(fs.readFileSync(path, "utf-8"));
-  const poolNames = Object.keys(conf);
+const getPools = async () => {
+  const addresses = await factory.methods.getPools().call();
 
-  const contracts = poolNames.map((x) => pools.get(x)[2]);
+  const contracts = addresses.map((x) => blockchain.loadContract(web3, x, ABI));
 
+  // проверить пустую фабрику
   const values = await Promise.all(
     contracts.map((x) => x.methods.pool().call())
   );
 
-  values.forEach((x, i) => {
-    conf[poolNames[i]].start = x.startTime;
-    conf[poolNames[i]].end = x.endTime;
+  const poolsConfigList = [];
+
+  values.forEach((poolData, i) => {
+    pools.set(poolData.name, [addresses[i], poolData.vestingDuration]);
+
+    const poolConfig = {};
+    poolConfig.name = poolData.name;
+    poolConfig.address = addresses[i];
+    poolConfig.start = poolData.startTime;
+    poolConfig.end = poolData.endTime;
+    poolsConfigList.push(poolConfig);
   });
 
-  fs.writeFileSync(path, JSON.stringify(conf), "utf-8");
+  fs.writeFileSync(
+    "./config/poolsConfig.json",
+    JSON.stringify(poolsConfigList),
+    "utf-8"
+  );
+
+  //TODO: переписать
+  pools.forEach((value, key) => {
+    value.push(blockchain.loadContract(web3, value[0], ABI));
+  });
 };
 
 module.exports.SyncByUpdate = SyncByUpdate;
