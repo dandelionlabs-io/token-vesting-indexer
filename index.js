@@ -18,7 +18,10 @@ app.get("/", (_req, res) => {
 app.get("/:poolName", async (_req, res) => {
   const { poolName } = _req.params;
   try {
-    res.send(JSON.parse(fs.readFileSync(`./data/${poolName}.json`, "utf-8")));
+    const path = `./data/${poolName}.json`;
+    if (fs.existsSync(path))
+      res.send(JSON.parse(fs.readFileSync(path, "utf-8")));
+    else res.send({});
   } catch (error) {
     console.log(error);
     res.status(500).send("Error fetching the pool, probably doesn't exist");
