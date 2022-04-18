@@ -215,7 +215,6 @@ const getPools = async () => {
 
   const contracts = addresses.map((x) => blockchain.loadContract(web3, x, ABI));
 
-  // проверить пустую фабрику
   const values = await Promise.all(
     contracts.map((x) => x.methods.pool().call())
   );
@@ -239,7 +238,6 @@ const getPools = async () => {
     "utf-8"
   );
 
-  //TODO: переписать
   pools.forEach((value, key) => {
     value.push(blockchain.loadContract(web3, value[0], ABI));
   });

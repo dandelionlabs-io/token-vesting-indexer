@@ -1,30 +1,30 @@
-const fs = require('fs');
+const fs = require("fs");
 
-let loadData = async function(file) {
+let loadData = async function (file) {
   try {
-    return JSON.parse(fs.readFileSync(`./data/${file}.json`, 'utf-8'));
+    return JSON.parse(fs.readFileSync(`./data/${file}.json`, "utf-8"));
   } catch (error) {
-    if (error.code === 'ENOENT') {
+    if (error.code === "ENOENT") {
       try {
         fs.writeFileSync(`./data/${file}.json`, JSON.stringify({}));
         return {};
       } catch (error) {
         console.error(error);
-        process.exit()
+        process.exit();
       }
     }
     throw new Error(`Can not read ${file}.json`);
   }
-}
+};
 
-let saveData = async function(file, data) {
+let saveData = async function (file, data) {
   try {
     fs.writeFileSync(`./data/${file}.json`, JSON.stringify(data));
   } catch (error) {
     console.error(error);
-    process.exit()
+    process.exit();
   }
-}
+};
 
 /**
   /// @notice Event emitted when a new grant is created
@@ -46,26 +46,35 @@ const logSync = async (dataName, arr, web3, duration) => {
   for (let index = 0; index < arr.length; index++) {
     const event = arr[index];
 
-    if (event['event'] == 'GrantAdded') {
-      let amount    = web3.utils.fromWei(event.returnValues.amount, 'ether');
+    if (event["event"] == "GrantAdded") {
+      let amount = web3.utils.fromWei(event.returnValues.amount, "ether");
       let perSecond = parseFloat(amount) / parseInt(duration);
-      let claimed   = 0;
+      let claimed = 0;
       let recipient = event.returnValues.recipient.toLowerCase();
+      let claimHistory = [];
 
       data[recipient] = {
-        amount:     amount,
-        perSecond:  perSecond,
-        claimed:    claimed
+        amount: amount,
+        perSecond: perSecond,
+        claimed: claimed,
+        claimHistory: claimHistory,
       };
-    }
-    else if (event['event'] == 'GrantTokensClaimed') {
+    } else if (event["event"] == "GrantTokensClaimed") {
+      console.log(event);
       let recipient = event.returnValues.recipient.toLowerCase();
-      let amount    = web3.utils.fromWei(event.returnValues.amountClaimed.toString(), 'ether');
-
+      let amount = web3.utils.fromWei(
+        event.returnValues.amountClaimed.toString(),
+        "ether"
+      );
       if (data[recipient]) {
-        data[recipient].claimed = parseFloat(data[recipient].claimed) + parseFloat(amount);
+        data[recipient].claimed =
+          parseFloat(data[recipient].claimed) + parseFloat(amount);
+        data[recipient].claimHistory.push({
+          date: event.blockNumber,
+          amount: amount,
+        });
       }
-    } else if (event['event'] == 'ChangeInvestor') {
+    } else if (event["event"] == "ChangeInvestor") {
       let o = event.returnValues.oldOwner.toLowerCase();
       let n = event.returnValues.newOwner.toLowerCase();
 
@@ -73,12 +82,20 @@ const logSync = async (dataName, arr, web3, duration) => {
         data[n] = JSON.parse(JSON.stringify(data[o]));
         delete data[o];
       }
+    } else if (event["event"] == "OwnershipTransferred") {
+      const path = "./config/poolsConfig.json";
+      const config = JSON.parse(fs.readFileSync(path, "utf-8"));
+
+      config.find((x) => x.address == event.address)["owner"] =
+        event.returnValues.newOwner;
+
+      fs.writeFileSync(path, JSON.stringify(config), "utf-8");
     }
   }
 
   await saveData(dataName, data);
-}
+};
 
 module.exports = {
-  logSync
-}
+  logSync,
+};
