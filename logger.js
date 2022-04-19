@@ -42,7 +42,6 @@ let saveData = async function (file, data) {
  */
 const logSync = async (dataName, arr, web3, duration) => {
   let data = await loadData(dataName);
-
   for (let index = 0; index < arr.length; index++) {
     const event = arr[index];
 
@@ -60,17 +59,19 @@ const logSync = async (dataName, arr, web3, duration) => {
         claimHistory: claimHistory,
       };
     } else if (event["event"] == "GrantTokensClaimed") {
-      console.log(event);
       let recipient = event.returnValues.recipient.toLowerCase();
       let amount = web3.utils.fromWei(
         event.returnValues.amountClaimed.toString(),
         "ether"
       );
+
       if (data[recipient]) {
         data[recipient].claimed =
           parseFloat(data[recipient].claimed) + parseFloat(amount);
+        const timestamp = (await web3.eth.getBlock(event.blockNumber))
+          .timestamp;
         data[recipient].claimHistory.push({
-          date: event.blockNumber,
+          date: timestamp,
           amount: amount,
         });
       }

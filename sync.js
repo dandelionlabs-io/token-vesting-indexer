@@ -149,7 +149,7 @@ let processEvents = async function (pool, dataName, conf, from, to) {
   let poolEvents;
   try {
     poolEvents = await pool.getPastEvents("allEvents", {
-      fromBlock: from,
+      fromBlock: from + 1,
       toBlock: to,
     });
   } catch (error) {
