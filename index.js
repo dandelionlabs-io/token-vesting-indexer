@@ -3,6 +3,8 @@ require("dotenv").config();
 const fs = require("fs");
 const express = require("express");
 const { SyncByUpdate, web3 } = require("./sync");
+const { sequelize } = require("./sequelize");
+const { QueryTypes } = require('sequelize');
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -18,43 +20,28 @@ app.get("/", (_req, res) => {
   res.send("Token Linear Vesting Grant list!");
 });
 
-app.get("/:poolName", async (_req, res) => {
-  const { poolName } = _req.params;
-  try {
-    const path = `./data/${poolName}.json`;
-    if (fs.existsSync(path))
-      res.send(JSON.parse(fs.readFileSync(path, "utf-8")));
-    else res.send({});
-  } catch (error) {
-    console.log(error);
-    res.status(500).send("Error fetching the pool, probably doesn't exist");
-  }
-});
-
 app.get("/:poolAddress/stakeholders", async (_req, res) => {
   const { poolAddress } = _req.params;
   try {
-    const events = await Event.findAll({
-      where: {
-        PoolAddress: poolAddress,
-        name: 'GrantAdded',
-        returnValues: {
-          recipient: userAddress
+    const stakeholders = await sequelize.query(
+        `SELECT "Event"."returnValues"->>'recipient' as address,
+                SUM(("Event"."returnValues"->>'amount')::numeric) as amountLocked,
+                (SELECT SUM(("ch"."returnValues"->>'amountClaimed')::numeric)
+                   FROM "Events" AS "ch"
+                  WHERE "ch"."returnValues"->>'recipient' = min("Event"."returnValues"->>'recipient')
+                    AND "ch"."name" = 'GrantTokensClaimed'
+                    AND "ch"."PoolAddress" = :poolAddress) AS "amountClaimed"
+           FROM "Events" AS "Event"
+          WHERE "Event"."PoolAddress" = :poolAddress
+            AND "Event"."name" = 'GrantAdded'
+          GROUP BY "returnValues"->>'recipient'`,
+        {
+          replacements: { poolAddress },
+          type: QueryTypes.SELECT
         }
-      },
-      order: [['timestamp', 'DESC']]
-    });
+    );
 
-    const claims = []
-
-    for (let i = 0; i < events.length; i++) {
-      claims.push({
-        amount: web3.utils.fromWei(events[i].returnValues.amount.toString(), "ether"),
-        timestamp: events[i].timestamp
-      })
-    }
-
-    res.send(claims);
+    res.send(stakeholders);
   } catch (error) {
     console.log(error);
     res.status(500).send("Error fetching the pool, probably doesn't exist");
@@ -79,7 +66,7 @@ app.get("/:poolAddress/claims/:userAddress", async (_req, res) => {
 
     for (let i = 0; i < events.length; i++) {
       claims.push({
-        amount: web3.utils.fromWei(events[i].returnValues.amountClaimed.toString(), "ether"),
+        amount: events[i].returnValues.amountClaimed,
         timestamp: events[i].timestamp
       })
     }
