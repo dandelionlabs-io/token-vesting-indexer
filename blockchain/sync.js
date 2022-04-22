@@ -131,10 +131,7 @@ let processEvents = async function (pool, dataName, from, to) {
   let poolEvents;
   try {
     poolEvents = (
-      await pool[2].getPastEvents("allEvents", {
-        fromBlock: from + 1,
-        toBlock: to,
-      })
+      await pool[2].getPastEvents("allEvents", {fromBlock: from + 1, toBlock: to,})
     ).sort((a, b) =>
       a.blockNumber > b.blockNumber ? 1 : b.blockNumber > a.blockNumber ? -1 : 0
     );
@@ -149,12 +146,7 @@ let processEvents = async function (pool, dataName, from, to) {
   /// Exit from the script, to restart it by docker, if failed to log the events into the blockchain
   if (poolEvents.length > 0) {
     try {
-      await logSync(
-        dataName,
-        poolEvents,
-        web3,
-        process.env.PRIVATE_SALE_DURATION
-      );
+      await logSync(dataName, poolEvents, web3);
     } catch (error) {
       console.error(`${currentTime()}: log error to database...`);
       console.error(error);
