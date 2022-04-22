@@ -132,11 +132,12 @@ let log = async function (conf, latestBlockNum, syncedBlockHeight) {
 
   for (let i = 0; i < iterationCount; i++) {
     let poolCount = 0;
-    pools.forEach(async (value, key) => {
-      await processEvents(value[2], key, conf, from, to);
+
+    for (const pool of pools) {
+      await processEvents(pool[1], pool[0], conf, from, to);
       poolCount++;
       if (pools.size !== poolCount) await timeOut(1);
-    });
+    }
 
     from += offset;
     to = from + offset > latestBlockNum ? latestBlockNum : from + offset;
@@ -149,10 +150,14 @@ let log = async function (conf, latestBlockNum, syncedBlockHeight) {
 let processEvents = async function (pool, dataName, conf, from, to) {
   let poolEvents;
   try {
-    poolEvents = await pool.getPastEvents("allEvents", {
-      fromBlock: from + 1,
-      toBlock: to,
-    });
+    poolEvents = (
+      await pool[2].getPastEvents("allEvents", {
+        fromBlock: from + 1,
+        toBlock: to,
+      })
+    ).sort((a, b) =>
+      a.blockNumber > b.blockNumber ? 1 : b.blockNumber > a.blockNumber ? -1 : 0
+    );
   } catch (error) {
     console.log(`${currentTime()}: event error:`);
     console.log(error.toString());
