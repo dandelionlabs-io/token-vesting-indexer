@@ -14,8 +14,9 @@
 require("dotenv").config();
 
 const fs = require("fs"); // to fetch the abi of smartcontract
+const axios = require("axios");
 const blockchain = require("./blockchain");
-const { Pool } = require("../database/models");
+const { Pool, Settings } = require("../database/models");
 const { logSync } = require("./logger");
 
 // Initiation of web3 and contract
@@ -46,11 +47,16 @@ const SyncByUpdate = async () => {
 
   await getPools();
 
-  /// Getting configuration
-  let conf = await loadConf();
-
   while (true === true) {
-    let { latestBlockNum, syncedBlockHeight } = await blockHeights(conf);
+    let syncedBlockHeight = await Settings.findOne({where: { key: 'syncedBlockHeight' }});
+
+    if (!syncedBlockHeight) {
+      const dataftx = await getFirstTransaction(process.env.FACTORY_CONTRACT_ADDRESS)
+      syncedBlockHeight = await Settings.create({ key: 'syncedBlockHeight', value: dataftx?.data.result[0].blockNumber });
+    }
+
+    const latestBlockNum = await web3.eth.getBlockNumber()
+
     if (isNaN(parseInt(latestBlockNum))) {
       console.log("Failed to connect to web3.");
       web3 = blockchain.reInit();
@@ -63,13 +69,15 @@ const SyncByUpdate = async () => {
       console.log(`${currentTime()}: ${syncedBlockHeight} > ${latestBlockNum}`);
 
       // Set to the latest block number from the blockchain.
-      conf["syncedBlockHeight"] = latestBlockNum;
-      await saveConf(conf);
+      const result = await Project.update(
+          { value: latestBlockNum },
+          {where: { key: 'syncedBlockHeight' }}
+      )
     }
 
     if (syncedBlockHeight < latestBlockNum) {
       console.log(`${currentTime()}: ${syncedBlockHeight} < ${latestBlockNum}`);
-      await log(conf, latestBlockNum, syncedBlockHeight);
+      await log(latestBlockNum, syncedBlockHeight);
     }
 
     console.log(`${currentTime()}: ${latestBlockNum} is synced`);
@@ -81,38 +89,12 @@ const SyncByUpdate = async () => {
 };
 
 /**
- * @description Return the latest local updated block height and blockchain latest block.
- *
- * We use a separated function, to catch the errors. And throw error in standard way as Sync.js accepts.
- */
-let blockHeights = async function (conf) {
-  let latestBlockNum;
-  let syncedBlockHeight;
-
-  /// "from" block height
-  syncedBlockHeight = conf["syncedBlockHeight"];
-  if (isNaN(syncedBlockHeight)) {
-    throw new Error("syncedBlockHeight must be integer");
-  }
-
-  /// "to" block height
-  try {
-    latestBlockNum = await web3.eth.getBlockNumber();
-  } catch (error) {
-    return { undefined, syncedBlockHeight };
-  }
-
-  return { latestBlockNum, syncedBlockHeight };
-};
-
-/**
  * @description Fetch the event logs from Blockchain, then write them in the database.
- * @param conf JSON configuration
  * @param latestBlockNum
  * @param syncedBlockHeight
  * @returns
  */
-let log = async function (conf, latestBlockNum, syncedBlockHeight) {
+let log = async function (latestBlockNum, syncedBlockHeight) {
   /// Some blockchains sets the limit to the range of blocks when fetching the logs.
   /// In order to avoid it, we are iterating that range through the loop by limited range blocks.
   /// The limited range block is called offset in our script.
@@ -135,7 +117,7 @@ let log = async function (conf, latestBlockNum, syncedBlockHeight) {
     let poolCount = 0;
 
     for (const pool of pools) {
-      await processEvents(pool[1], pool[0], conf, from, to);
+      await processEvents(pool[1], pool[0], from, to);
       poolCount++;
       if (pools.size !== poolCount) await timeOut(1);
     }
@@ -143,12 +125,14 @@ let log = async function (conf, latestBlockNum, syncedBlockHeight) {
     from += offset;
     to = from + offset > latestBlockNum ? latestBlockNum : from + offset;
 
-    conf["syncedBlockHeight"] = to;
-    await saveConf(conf);
+    const result = await Project.update(
+        { value: to },
+        {where: { key: 'syncedBlockHeight' }}
+    )
   }
 };
 
-let processEvents = async function (pool, dataName, conf, from, to) {
+let processEvents = async function (pool, dataName, from, to) {
   let poolEvents;
   try {
     poolEvents = (
@@ -181,23 +165,6 @@ let processEvents = async function (pool, dataName, conf, from, to) {
       console.error(error);
       process.exit();
     }
-  }
-};
-
-let loadConf = async function () {
-  try {
-    return JSON.parse(fs.readFileSync("./config/sync-status.json", "utf-8"));
-  } catch (error) {
-    throw new Error(`Can not read config/sync-status.json`);
-  }
-};
-
-let saveConf = async function (conf) {
-  try {
-    fs.writeFileSync("./config/sync-status.json", JSON.stringify(conf));
-  } catch (error) {
-    console.error(error);
-    process.exit();
   }
 };
 
@@ -249,6 +216,16 @@ const getPools = async () => {
   pools.forEach((value, key) => {
     value.push(blockchain.loadContract(web3, value[0], ABI));
   });
+};
+
+const getFirstTransaction = async (contractAddress) => {
+  const getContractCreationTxURL =
+      process.env.ETHERSCAN_URL + "api?module=account&action=txlist&address=" +
+      contractAddress +
+      "&startblock=0&endblock=99999999&page=1&offset=10&sort=asc&apikey=" +
+      process.env.ETHERSCAN_API_KEY;
+
+  return await axios.get(getContractCreationTxURL);
 };
 
 module.exports = { SyncByUpdate, web3 };

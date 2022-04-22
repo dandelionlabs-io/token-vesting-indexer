@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^0.26.1",
     "command-line-args": "^5.2.0",
     "cors": "^2.8.5",
     "dotenv": "^8.6.0",
