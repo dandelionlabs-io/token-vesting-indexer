@@ -16,9 +16,12 @@ const reInit = function() {
   return new Web3(process.env.RPC_URL, options);
 }
 
+const contractList = new Map();
+
 const loadContract = function(web3, address, abi) {
-  const contract = new web3.eth.Contract(abi, address);
-  return contract;
+    if (!contractList.get(address))
+        contractList.set(address, new web3.eth.Contract(abi, address));
+  return contractList.get(address);
 };
 
 module.exports = {

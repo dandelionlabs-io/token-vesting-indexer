@@ -69,9 +69,7 @@ const SyncByUpdate = async () => {
       console.log(`${currentTime()}: ${syncedBlockHeight.value} > ${latestBlockNum}`);
 
       // Set to the latest block number from the blockchain.
-      const result = await Settings.update(
-          { value: latestBlockNum },
-          {where: { key: 'syncedBlockHeight' }}
+      await Settings.update({ value: latestBlockNum }, { where: { key: 'syncedBlockHeight' }}
       )
     }
 
@@ -125,10 +123,7 @@ let log = async function (latestBlockNum, syncedBlockHeight) {
     from += offset;
     to = from + offset > latestBlockNum ? latestBlockNum : from + offset;
 
-    const result = await Settings.update(
-        { value: to },
-        {where: { key: 'syncedBlockHeight' }}
-    )
+    await Settings.update({ value: to }, {where: { key: 'syncedBlockHeight' }})
   }
 };
 
@@ -186,31 +181,26 @@ const currentTime = function () {
 
 const getPools = async () => {
   const addresses = await factory.methods.getPools().call();
-
   const contracts = addresses.map((x) => blockchain.loadContract(web3, x, ABI));
 
   const values = await Promise.all(
     contracts.map((x) => x.methods.pool().call())
   );
 
-  const poolsConfigList = [];
-
   for (let i = 0; i < values.length; i++) {
     const poolData = values[i];
     pools.set(poolData.name, [addresses[i], poolData.vestingDuration]);
 
-    const poolConfig = {};
-    poolConfig.name = poolData.name;
-    poolConfig.address = addresses[i];
-    poolConfig.start = poolData.startTime;
-    poolConfig.end = poolData.endTime;
-    poolConfig.factoryAddress = process.env.FACTORY_CONTRACT_ADDRESS;
-    poolsConfigList.push(poolConfig);
-
     const pool = await Pool.findByPk(addresses[i]);
 
     if (!pool)
-      await Pool.create(poolConfig);
+      await Pool.create({
+        name: poolData.name,
+        address: addresses[i],
+        start: poolData.startTime,
+        end: poolData.endTime,
+        factoryAddress: process.env.FACTORY_CONTRACT_ADDRESS,
+      });
   };
 
   pools.forEach((value, key) => {
