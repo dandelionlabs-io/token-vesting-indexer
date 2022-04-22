@@ -13,13 +13,13 @@ require("dotenv").config();
 
 const fs = require("fs"); // to fetch the abi of smartcontract
 const blockchain = require("./blockchain");
-const { Pool } = require("./models");
+const { Pool } = require("../database/models");
 const { logSync } = require("./logger");
 
 // Initiation of web3 and contract
 let web3 = blockchain.reInit();
 
-const factory_abi = JSON.parse(fs.readFileSync("./factory.json", "utf-8"));
+const factory_abi = JSON.parse(fs.readFileSync("abis/factory.json", "utf-8"));
 const factory = blockchain.loadContract(
   web3,
   process.env.FACTORY_CONTRACT_ADDRESS,
@@ -29,7 +29,7 @@ const factory = blockchain.loadContract(
 /// Create the smartcontract instace using the ABI json and the Smartcontract address
 const pools = new Map();
 
-const ABI = JSON.parse(fs.readFileSync("./vesting.json", "utf-8"));
+const ABI = JSON.parse(fs.readFileSync("abis/vesting.json", "utf-8"));
 
 /**
  * @description This function reads the conf to get the latest updated block height.
@@ -41,7 +41,6 @@ const ABI = JSON.parse(fs.readFileSync("./vesting.json", "utf-8"));
  * - Updating the data on File system and Database. (Most likely resources are busy)
  */
 const SyncByUpdate = async () => {
-  // await updatePoolTime();
 
   await getPools();
 

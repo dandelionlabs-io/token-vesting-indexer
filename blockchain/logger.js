@@ -1,4 +1,4 @@
-const { Event } = require("./models");
+const { Event } = require("../database/models");
 
 const logSync = async (dataName, arr, web3, duration) => {
   const blockTimestamps = new Map();

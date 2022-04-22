@@ -2,14 +2,14 @@ require("dotenv").config();
 
 const fs = require("fs");
 const express = require("express");
-const { SyncByUpdate, web3 } = require("./sync");
-const { sequelize } = require("./sequelize");
+const { SyncByUpdate, web3 } = require("./blockchain/sync");
+const { sequelize } = require("./database/sequelize");
 const { QueryTypes } = require('sequelize');
 
 const app = express();
 const port = process.env.PORT || 4000;
 
-const { Pool, Event } = require("./models");
+const { Pool, Event } = require("./database/models");
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
