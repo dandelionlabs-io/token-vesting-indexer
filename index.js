@@ -37,10 +37,19 @@ app.get("/config/pools", async (_req, res) => {
   }
 });
 
-app.listen(port, () => {
+app.post("/blacklist", async (_req, res) => {
+  try {
+    res.send(JSON.parse(fs.readFileSync(`./config/blacklist.json`, "utf-8")));
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Error, file does not exist");
+  }
+});
+
+app.listen(port, async () => {
   try {
     let sync = require("./sync");
-    sync.SyncByUpdate();
+    await sync.SyncByUpdate();
   } catch (e) {
     process.exit(1);
   }

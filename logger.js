@@ -83,6 +83,19 @@ const logSync = async (dataName, arr, web3, duration) => {
         data[n] = JSON.parse(JSON.stringify(data[o]));
         delete data[o];
       }
+
+      const blacklist = JSON.parse(
+        fs.readFileSync(`./config/blacklist.json`, "utf-8")
+      );
+
+      if (!blacklist[dataName]) blacklist[dataName] = [o];
+      else blacklist[dataName].push(o);
+
+      fs.writeFileSync(
+        `./config/blacklist.json`,
+        JSON.stringify(blacklist),
+        "utf-8"
+      );
     } else if (event["event"] == "OwnershipTransferred") {
       const path = "./config/poolsConfig.json";
       const config = JSON.parse(fs.readFileSync(path, "utf-8"));
