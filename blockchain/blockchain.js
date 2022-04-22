@@ -13,7 +13,7 @@ const reInit = function() {
     }
   };
 
-  return new Web3(process.env.REMOTE_HTTP, options);
+  return new Web3(process.env.RPC_URL, options);
 }
 
 const loadContract = function(web3, address, abi) {

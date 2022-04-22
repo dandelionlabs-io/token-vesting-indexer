@@ -1,6 +1,24 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("./sequelize");
 
+const Settings = sequelize.define(
+    "Settings",
+    {
+        key: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            primaryKey: true,
+        },
+        value: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+    },
+    {
+        timestamps: false,
+    }
+);
+
 const Pool = sequelize.define(
     "Pool",
     {
@@ -61,4 +79,4 @@ Event.belongsTo(Pool);
 
 sequelize.sync();
 
-module.exports = { Event, Pool };
+module.exports = { Event, Pool, Settings };

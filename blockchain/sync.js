@@ -2,6 +2,8 @@
  * @description Sync the smartcontract with the SQL. The sync.js is the starting point of it.
  *
  * @author Medet Ahmetson <admin@blocklords.io>
+ * @contributor Alexander Filatov <alex@dandelionlabs.io>
+ * @contributor Leon Acosta <leon@dandelionlabs.io>
  *
  * Following environment variables are required for any *-sync script:
  * @requires REMOTE_HTTP              - the URL endpoint of the blockchain node. i.e. For ethereum use the https://infura.io
@@ -52,7 +54,7 @@ const SyncByUpdate = async () => {
     if (isNaN(parseInt(latestBlockNum))) {
       console.log("Failed to connect to web3.");
       web3 = blockchain.reInit();
-      await timeOut(conf["sleepInterval"]);
+      await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
       continue;
     }
 
@@ -74,7 +76,7 @@ const SyncByUpdate = async () => {
 
     /// if "from" and "to" are matching, database synced up to latest block.
     /// Wait for appearance of a new block
-    await timeOut(conf["sleepInterval"]);
+    await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
   }
 };
 
@@ -116,7 +118,7 @@ let log = async function (conf, latestBlockNum, syncedBlockHeight) {
   /// The limited range block is called offset in our script.
 
   let from, to;
-  const offset = conf["offset"];
+  const offset = process.env.LISTENER_OFFSET;
   const iterationCount = Math.max(
     0,
     (latestBlockNum - syncedBlockHeight) / offset
@@ -160,7 +162,7 @@ let processEvents = async function (pool, dataName, conf, from, to) {
   } catch (error) {
     console.log(`${currentTime()}: event error:`);
     console.log(error.toString());
-    await timeOut(conf["sleepInterval"]);
+    await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
     process.exit(0);
     // Maybe to reinit the Web3?
   }
