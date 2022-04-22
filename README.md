@@ -19,16 +19,15 @@ You will need node.js (12.\* or later) and npm installed to run it locally.
 1. Import the repository and `cd` into the new directory.
 2. Run `npm install`.
 3. Copy the file `.env.example` to `.env`, and:
-   - Input an INFURA or ALCHEMY url in `REMOTE_HTTP`.
-   - Input a vesting factory smart contract address in `FACTORY_CONTRACT_ADDRESS`.
-4. Replace the `syncedBlockHeight` property value in `config/sync-status.json` with the Block Number of Factory's deployed Transaction number.
+   - Add an `INFURA` or `ALCHEMY` url in `RPC_URL`.
+   - Add a vesting factory smart contract address in `FACTORY_CONTRACT_ADDRESS`.
+   - Add a `ETHERSCAN_API_KEY`
+   - Add a postgres database parameters
 5. Finally, run the bot `node index.js`.
 
 ### Restarting
 
-1. Make sure you remove any `.json` files from the folder `./data`.
-2. Make sure `config/poolsConfig.json` file is empty.
-3. Replace the `syncedBlockHeight` property value in `config/sync-status.json` with the Block Number of Factory's deployed Transaction number.
+If you want to restart the process and reload all the events again, you can simply delete the record with key `syncedBlockHeight` from the `Settings` table.
 
 ## Troubleshooting
 
@@ -39,4 +38,5 @@ If you have any questions, send them along with a hi to [hello@dandelionlabs.io]
 Anyone can collaborate and improve this repository. Special thanks to all of those who contributed to the creation of it.
 
 1. Medet Ahmetson <admin@blocklords.io>
-2. Leon Acosta <leon@dandelionlabs.io>
+2. Alexander Filatov <alex@dandelionlabs.io>
+3. Leon Acosta <leon@dandelionlabs.io>
