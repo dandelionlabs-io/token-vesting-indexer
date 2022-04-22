@@ -65,19 +65,19 @@ const SyncByUpdate = async () => {
     }
 
     /// "from" can't be greater than "to"
-    if (syncedBlockHeight > latestBlockNum) {
-      console.log(`${currentTime()}: ${syncedBlockHeight} > ${latestBlockNum}`);
+    if (syncedBlockHeight.value > latestBlockNum) {
+      console.log(`${currentTime()}: ${syncedBlockHeight.value} > ${latestBlockNum}`);
 
       // Set to the latest block number from the blockchain.
-      const result = await Project.update(
+      const result = await Settings.update(
           { value: latestBlockNum },
           {where: { key: 'syncedBlockHeight' }}
       )
     }
 
-    if (syncedBlockHeight < latestBlockNum) {
-      console.log(`${currentTime()}: ${syncedBlockHeight} < ${latestBlockNum}`);
-      await log(latestBlockNum, syncedBlockHeight);
+    if (syncedBlockHeight.value < latestBlockNum) {
+      console.log(`${currentTime()}: ${syncedBlockHeight.value} < ${latestBlockNum}`);
+      await log(latestBlockNum, syncedBlockHeight.value);
     }
 
     console.log(`${currentTime()}: ${latestBlockNum} is synced`);
@@ -125,7 +125,7 @@ let log = async function (latestBlockNum, syncedBlockHeight) {
     from += offset;
     to = from + offset > latestBlockNum ? latestBlockNum : from + offset;
 
-    const result = await Project.update(
+    const result = await Settings.update(
         { value: to },
         {where: { key: 'syncedBlockHeight' }}
     )
