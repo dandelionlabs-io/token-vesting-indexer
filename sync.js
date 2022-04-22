@@ -13,6 +13,7 @@ require("dotenv").config();
 
 const fs = require("fs"); // to fetch the abi of smartcontract
 const blockchain = require("./blockchain");
+const { Pool } = require("./models");
 const { logSync } = require("./logger");
 
 // Initiation of web3 and contract
@@ -221,7 +222,8 @@ const getPools = async () => {
 
   const poolsConfigList = [];
 
-  values.forEach((poolData, i) => {
+  for (let i = 0; i < values.length; i++) {
+    const poolData = values[i];
     pools.set(poolData.name, [addresses[i], poolData.vestingDuration]);
 
     const poolConfig = {};
@@ -229,18 +231,18 @@ const getPools = async () => {
     poolConfig.address = addresses[i];
     poolConfig.start = poolData.startTime;
     poolConfig.end = poolData.endTime;
+    poolConfig.factoryAddress = process.env.FACTORY_CONTRACT_ADDRESS;
     poolsConfigList.push(poolConfig);
-  });
 
-  fs.writeFileSync(
-    "./config/poolsConfig.json",
-    JSON.stringify(poolsConfigList),
-    "utf-8"
-  );
+    const pool = await Pool.findByPk(addresses[i]);
+
+    if (!pool)
+      await Pool.create(poolConfig);
+  };
 
   pools.forEach((value, key) => {
     value.push(blockchain.loadContract(web3, value[0], ABI));
   });
 };
 
-module.exports.SyncByUpdate = SyncByUpdate;
+module.exports = { SyncByUpdate, web3 };
