@@ -6,7 +6,7 @@ This repository contains the indexer that keep track the Stakeholders list to se
 
 - [Getting Started](#getting-started)
   - [Requirements](#requirements)
-  - [Restarting](#restarting)
+  - [Adding your Factory](#adding-your-factory)
 - [Troubleshooting](#troubleshooting)
 - [Collaborators](#collaborators)
 
@@ -24,11 +24,9 @@ You will need node.js (12.\* or later) and npm installed to run it locally.
 4. Replace the `syncedBlockHeight` property value in `config/sync-status.json` with the Block Number of Factory's deployed Transaction number.
 5. Finally, run the bot `node index.js`.
 
-### Restarting
+### Adding your factory
 
-1. Make sure you remove any `.json` files from the folder `./data`.
-2. Make sure `config/poolsConfig.json` file is empty.
-3. Replace the `syncedBlockHeight` property value in `config/sync-status.json` with the Block Number of Factory's deployed Transaction number.
+If you have your own project and want your factory to be available within our community, add a record into `database/factories.js` file. There you will have a space to specify the address, website, project name, and logo, to make it available in our platform for your community.
 
 ## Troubleshooting
 

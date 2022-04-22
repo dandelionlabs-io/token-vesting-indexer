@@ -1,17 +1,26 @@
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("./sequelize");
 
-const Settings = sequelize.define(
-    "Settings",
+const Factory = sequelize.define(
+    "Factory",
     {
-        key: {
+        initialBlockHeight: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+        address: {
             type: DataTypes.STRING,
             allowNull: false,
             primaryKey: true,
         },
-        value: {
-            type: DataTypes.STRING,
-            allowNull: false,
+        projectName: {
+            type: DataTypes.STRING
+        },
+        logoUrl: {
+            type: DataTypes.STRING
+        },
+        website: {
+            type: DataTypes.STRING
         },
     },
     {
@@ -22,10 +31,6 @@ const Settings = sequelize.define(
 const Pool = sequelize.define(
     "Pool",
     {
-        factoryAddress: {
-            type: DataTypes.STRING,
-            allowNull: false,
-        },
         address: {
             type: DataTypes.STRING,
             allowNull: false,
@@ -41,11 +46,17 @@ const Pool = sequelize.define(
         end: {
             type: DataTypes.INTEGER,
         },
+        syncedBlockHeight: {
+            type: DataTypes.STRING,
+        },
     },
     {
         timestamps: false,
     }
 );
+
+Factory.hasMany(Pool);
+Pool.belongsTo(Factory);
 
 const Event = sequelize.define(
     "Event",
@@ -79,4 +90,4 @@ Event.belongsTo(Pool);
 
 sequelize.sync();
 
-module.exports = { Event, Pool, Settings };
+module.exports = { Factory, Event, Pool, Settings };

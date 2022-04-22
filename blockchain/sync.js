@@ -16,18 +16,24 @@ require("dotenv").config();
 const fs = require("fs"); // to fetch the abi of smartcontract
 const axios = require("axios");
 const blockchain = require("./blockchain");
-const { Pool, Settings } = require("../database/models");
+const factories = require("../database/factories");
+const { Factory, Pool, Settings } = require("../database/models");
 const { logSync } = require("./logger");
 
 // Initiation of web3 and contract
 let web3 = blockchain.reInit();
 
 const factory_abi = JSON.parse(fs.readFileSync("abis/factory.json", "utf-8"));
-const factory = blockchain.loadContract(
-  web3,
-  process.env.FACTORY_CONTRACT_ADDRESS,
-  factory_abi
-);
+
+const factoryContracts = []
+
+for (let factoryIndex = 0; factoryIndex < factories.length; factoryIndex++) {
+  factoryContracts.push(blockchain.loadContract(
+    web3,
+    factories.address,
+    factory_abi
+  ));
+}
 
 /// Create the smartcontract instace using the ABI json and the Smartcontract address
 const pools = new Map();
@@ -45,7 +51,7 @@ const ABI = JSON.parse(fs.readFileSync("abis/vesting.json", "utf-8"));
  */
 const SyncByUpdate = async () => {
 
-  await getPools();
+  await initPools();
 
   while (true === true) {
     let syncedBlockHeight = await Settings.findOne({where: { key: 'syncedBlockHeight' }});
@@ -171,33 +177,49 @@ const currentTime = function () {
   }/${currentdate.getFullYear()} ${currentdate.getHours()}:${currentdate.getMinutes()}:${currentdate.getSeconds()}`;
 };
 
-const getPools = async () => {
-  const addresses = await factory.methods.getPools().call();
-  const contracts = addresses.map((x) => blockchain.loadContract(web3, x, ABI));
+const initPools = async () => {
+  for (let factoryIndex = 0; factoryIndex < factoryContracts.length; i++) {
 
-  const values = await Promise.all(
-    contracts.map((x) => x.methods.pool().call())
-  );
+    const factory = await Factory.findByPk(factoryContracts[i].address);
 
-  for (let i = 0; i < values.length; i++) {
-    const poolData = values[i];
-    pools.set(poolData.name, [addresses[i], poolData.vestingDuration]);
-
-    const pool = await Pool.findByPk(addresses[i]);
-
-    if (!pool)
-      await Pool.create({
-        name: poolData.name,
-        address: addresses[i],
-        start: poolData.startTime,
-        end: poolData.endTime,
-        factoryAddress: process.env.FACTORY_CONTRACT_ADDRESS,
+    if (!factory) {
+      const dataftx = await getFirstTransaction(process.env.FACTORY_CONTRACT_ADDRESS)
+      await Factory.create({
+        address: factoryContracts[factoryIndex].address,
+        projectName: factoryContracts[factoryIndex].projectName,
+        logoUrl: factoryContracts[factoryIndex].logoUrl(),
+        website: factoryContracts[factoryIndex].website,
+        initialBlockHeight: dataftx?.data.result[0].blockNumber,
       });
-  };
+    }
 
-  pools.forEach((value, key) => {
-    value.push(blockchain.loadContract(web3, value[0], ABI));
-  });
+    const addresses = await factoryContracts[factoryIndex].methods.getPools().call();
+    const contracts = addresses.map((x) => blockchain.loadContract(web3, x, ABI));
+
+    const values = await Promise.all(
+      contracts.map((x) => x.methods.pool().call())
+    );
+
+    for (let i = 0; i < values.length; i++) {
+      const poolData = values[i];
+      pools.set(poolData.name, [addresses[i], poolData.vestingDuration]);
+
+      const pool = await Pool.findByPk(addresses[i]);
+
+      if (!pool)
+        await Pool.create({
+          name: poolData.name,
+          address: addresses[i],
+          start: poolData.startTime,
+          end: poolData.endTime,
+          factoryAddress: process.env.FACTORY_CONTRACT_ADDRESS,
+        });
+    };
+
+    pools.forEach((value, key) => {
+      value.push(blockchain.loadContract(web3, value[0], ABI));
+    });
+  }
 };
 
 const getFirstTransaction = async (contractAddress) => {
