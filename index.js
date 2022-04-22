@@ -92,7 +92,7 @@ app.get("/:poolAddress/stakeholders", async (_req, res) => {
 app.get("/claims/:poolAddress/:userAddress", async (_req, res) => {
   const { poolAddress, userAddress } = _req.params;
   try {
-    const events = await Event.findAll({
+    const claims = await Event.findAll({
       where: {
         PoolAddress: poolAddress,
         name: 'GrantTokensClaimed',
@@ -100,17 +100,12 @@ app.get("/claims/:poolAddress/:userAddress", async (_req, res) => {
           recipient: userAddress
         }
       },
+      attributes: [
+        'timestamp',
+        [sequelize.json('returnValues.amountClaimed'), 'amountClaimed']
+      ],
       order: [['timestamp', 'DESC']]
     });
-
-    const claims = []
-
-    for (let i = 0; i < events.length; i++) {
-      claims.push({
-        amount: events[i].returnValues.amountClaimed,
-        timestamp: events[i].timestamp
-      })
-    }
 
     res.send(claims);
   } catch (error) {
@@ -122,18 +117,13 @@ app.get("/claims/:poolAddress/:userAddress", async (_req, res) => {
 app.get("/:poolAddress/blacklist", async (_req, res) => {
   const { poolAddress } = _req.params;
   try {
-    const events = await Event.findAll({
+    const blacklist = await Event.findAll({
       where: {
         PoolAddress: poolAddress,
         name: 'ChangeInvestor'
-      }
+      },
+      attributes: [[sequelize.json('returnValues.oldOwner'), 'address']],
     });
-
-    const blacklist = []
-
-    for (let i = 0; i < events.length; i++) {
-      blacklist.push(events[i].returnValues.oldOwner)
-    }
 
     res.send(blacklist);
   } catch (error) {
