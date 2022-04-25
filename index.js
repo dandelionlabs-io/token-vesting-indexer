@@ -9,7 +9,7 @@ const log = require("simple-node-logger").createSimpleLogger("logs.log");
 const app = express();
 const port = process.env.PORT || 4000;
 
-const { Pool, Event } = require("./database/models");
+const { Factory, Event, Pool } = require("./database/models");
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -135,7 +135,8 @@ app.get("/:poolAddress/blacklist", async (_req, res) => {
   }
 });
 
-app.get("/pools", async (_req, res) => {
+app.get("/:factoryAddress/pools", async (_req, res) => {
+  const { factoryAddress } = _req.params;
   try {
     const pools = await Pool.findAll({
       include: [
@@ -148,6 +149,10 @@ app.get("/pools", async (_req, res) => {
             ["blockNumber", "DESC"],
             ["logIndex", "DESC"],
           ],
+        },
+        {
+          model: Factory,
+          where: { 'address': factoryAddress },
         },
       ],
     });
