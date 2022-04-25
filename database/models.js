@@ -88,4 +88,4 @@ Event.belongsTo(Pool);
 
 sequelize.sync();
 
-module.exports = { Factory, Event, Pool, Settings };
+module.exports = { Factory, Event, Pool };
