@@ -53,6 +53,7 @@ const initPools = async () => {
 
         let syncedBlockHeight = factory.initialBlockHeight;
         for (let i = 0; i < addresses.length; i++) {
+
             const poolAddress = addresses[i];
             const poolContract = blockchain.loadContract(web3list.get(factory.network), poolAddress, vestingPoolABI);
             const poolData = await poolContract.methods.pool().call();
@@ -70,16 +71,20 @@ const initPools = async () => {
                 });
                 console.log(`Created new pool: ${factory.network} - ${poolAddress}`)
             }
-            newPools.push({ contract: poolContract, instance: pool });
+            newPools.push(poolContract);
         }
 
         if (!networksToPools.has(factory.network))
             networksToPools.set(factory.network, new Map())
-        networksToPools.get(factory.network).set(factory.address, newPools)
+        const oldPools = networksToPools.get(factory.network).get(factory.address);
+        if (!oldPools)
+            networksToPools.get(factory.network).set(factory.address, newPools);
+        else {
+            oldPools.push(newPools)
+        }
     }
 
     console.log('Pools have been initiated...');
-
     return { networksToPools, web3list };
 }
 

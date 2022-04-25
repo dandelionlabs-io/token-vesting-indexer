@@ -8,22 +8,25 @@ const logSync = async (events, web3) => {
   for (let index = 0; index < events.length; index++) {
     const event = events[index];
 
-    const existingEvent = await Event.findOne({where: {blockNumber: event.blockNumber, logIndex: event.logIndex}});
+    if(event.event) {
 
-    if (!existingEvent) {
+      const existingEvent = await Event.findOne({where: {blockNumber: event.blockNumber, logIndex: event.logIndex}});
 
-      if (!blockTimestamps.get(event.blockNumber))
-        blockTimestamps.set(event.blockNumber, (await web3.eth.getBlock(event.blockNumber)).timestamp)
+      if (!existingEvent) {
 
-      const newEvent = {
-        blockNumber: event.blockNumber,
-        logIndex: event.logIndex,
-        returnValues: event.returnValues,
-        name: event.event,
-        PoolAddress: event.address,
-        timestamp: blockTimestamps.get(event.blockNumber)
+        if (!blockTimestamps.get(event.blockNumber))
+          blockTimestamps.set(event.blockNumber, (await web3.eth.getBlock(event.blockNumber)).timestamp)
+
+        const newEvent = {
+          blockNumber: event.blockNumber,
+          logIndex: event.logIndex,
+          returnValues: event.returnValues,
+          name: event.event,
+          PoolAddress: event.address,
+          timestamp: blockTimestamps.get(event.blockNumber)
+        }
+        await Event.create(newEvent);
       }
-      await Event.create(newEvent);
     }
   }
 };
@@ -53,7 +56,7 @@ let log = async function (latestBlockNum, syncedBlockHeight, factory, web3) {
   for (let i = 0; i < iterationCount; i++) {
     for (const poolsList of factory.values()) {
       for (const pool of poolsList) {
-        await processEvents(pool.contract, from, to, web3);
+        await processEvents(pool, from, to, web3);
         await timeOut(1);
       }
     }
@@ -76,7 +79,7 @@ let processEvents = async function (pool, from, to, web3) {
     );
   } catch (error) {
     console.log(`${getCurrentTimeString()}: event error:`);
-    console.log(error.toString());
+    console.log('yo terrible error', error.toString());
     await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
     process.exit(0);
     // Maybe to reinit the Web3?
