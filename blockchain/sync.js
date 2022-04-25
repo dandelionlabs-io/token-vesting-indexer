@@ -28,61 +28,54 @@ const SyncByUpdate = async () => {
   const { networksToPools, web3list } = await initPools();
 
   while (true === true) {
+    // TODO: control and await only after all networks are checked
+
     // get smaller block number to update from pools and network
-    try {
+    for (const network of networksToPools.keys()) {
+      const networkSync = await Factory.findAll({
+        attributes: [[sequelize.fn('min', sequelize.col('Pools.syncedBlockHeight')), 'minSyncedBlockHeight'],],
+        group: ['network'],
+        include: [{ model: Pool, attributes: [] }],
+        where: { 'network': network },
+        raw: true
+      });
 
-      // TODO: control and await only after all networks are checked
-      // TODO: remove try
-
-      for (const network of networksToPools.keys()) {
-        const networkSync = await Factory.findAll({
-          attributes: [[sequelize.fn('min', sequelize.col('Pools.syncedBlockHeight')), 'minSyncedBlockHeight'],],
-          group: ['network'],
-          include: [{ model: Pool, attributes: [] }],
-          where: { 'network': network },
-          raw: true
-        });
-
-        if (!networkSync) {
-          console.log('No pools were found.');
-          await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
-          continue;
-        }
-
-        const syncedBlockHeight = networkSync[0].minSyncedBlockHeight;
-
-        const latestBlockNum = await web3list.get(network).eth.getBlockNumber()
-
-        if (isNaN(parseInt(latestBlockNum))) {
-          console.log("Failed to connect to web3.");
-          web3list[network] = blockchain.reInit();
-          await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
-          continue;
-        }
-
-        // "from" can't be greater than "to"
-        if (syncedBlockHeight > latestBlockNum) {
-          console.log(`${getCurrentTimeString()}: ${syncedBlockHeight} > ${latestBlockNum}, updating all pools with latest block num value.`);
-
-          const factoryAddresses = Array.from(networksToPools.get(network).keys());
-          // Set to the latest block number from the blockchain.
-          await Pool.update({ syncedBlockHeight: latestBlockNum }, { where: { 'FactoryAddress': factoryAddresses } });
-        }
-
-        if (syncedBlockHeight < latestBlockNum) {
-          console.log(`${getCurrentTimeString()}: ${syncedBlockHeight} < ${latestBlockNum}`);
-          await log(latestBlockNum, syncedBlockHeight, networksToPools.get(network));
-        }
-
-        console.log(`${getCurrentTimeString()}: ${latestBlockNum} is synced`);
-
-        // if "from" and "to" are matching, database synced up to latest block.
-        // Wait for appearance of a new block
+      if (!networkSync) {
+        console.log('No pools were found.');
         await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
+        continue;
       }
 
-    } catch (e) {
-      console.log(e);
+      const syncedBlockHeight = networkSync[0].minSyncedBlockHeight;
+
+      const latestBlockNum = await web3list.get(network).eth.getBlockNumber()
+
+      if (isNaN(parseInt(latestBlockNum))) {
+        console.log("Failed to connect to web3.");
+        // web3list[network] = blockchain.reInit(); TODO CHECK
+        await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
+        continue;
+      }
+
+      // "from" can't be greater than "to"
+      if (syncedBlockHeight > latestBlockNum) {
+        console.log(`${getCurrentTimeString()}: ${syncedBlockHeight} > ${latestBlockNum}, updating all pools with latest block num value.`);
+
+        const factoryAddresses = Array.from(networksToPools.get(network).keys());
+        // Set to the latest block number from the blockchain.
+        await Pool.update({ syncedBlockHeight: latestBlockNum }, { where: { 'FactoryAddress': factoryAddresses } });
+      }
+
+      if (syncedBlockHeight < latestBlockNum) {
+        console.log(`${getCurrentTimeString()}: ${syncedBlockHeight} < ${latestBlockNum}`);
+        await log(latestBlockNum, syncedBlockHeight, networksToPools.get(network), web3list.get(network));
+      }
+
+      console.log(`${getCurrentTimeString()}: ${latestBlockNum} is synced`);
+
+      // if "from" and "to" are matching, database synced up to latest block.
+      // Wait for appearance of a new block
+      await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
     }
   }
 

@@ -34,7 +34,7 @@ const logSync = async (arr, web3) => {
  * @param syncedBlockHeight
  * @returns
  */
-let log = async function (latestBlockNum, syncedBlockHeight, factory) {
+let log = async function (latestBlockNum, syncedBlockHeight, factory, web3) {
   /// Some blockchains sets the limit to the range of blocks when fetching the logs.
   /// In order to avoid it, we are iterating that range through the loop by limited range blocks.
   /// The limited range block is called offset in our script.
@@ -53,7 +53,7 @@ let log = async function (latestBlockNum, syncedBlockHeight, factory) {
   for (let i = 0; i < iterationCount; i++) {
 
     for (const pool of factory.values()) {
-      await processEvents(pool[0].contract, from, to);
+      await processEvents(pool[0].contract, from, to, web3);
       await timeOut(1);
     }
 
@@ -65,7 +65,7 @@ let log = async function (latestBlockNum, syncedBlockHeight, factory) {
   }
 };
 
-let processEvents = async function (pool, from, to) {
+let processEvents = async function (pool, from, to, web3) {
   let poolEvents;
   try {
     poolEvents = (
@@ -73,7 +73,6 @@ let processEvents = async function (pool, from, to) {
     ).sort((a, b) =>
         a.blockNumber > b.blockNumber ? 1 : b.blockNumber > a.blockNumber ? -1 : 0
     );
-    console.log(poolEvents);
   } catch (error) {
     console.log(`${getCurrentTimeString()}: event error:`);
     console.log(error.toString());
