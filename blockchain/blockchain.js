@@ -1,6 +1,6 @@
 let Web3 = require('web3');
 
-const reInit = function() {
+const reInit = function(rpcUrl) {
   var options = {
     timeout: 60000, // ms
 
@@ -13,7 +13,7 @@ const reInit = function() {
     }
   };
 
-  return new Web3(process.env.RPC_URL, options);
+  return new Web3(rpcUrl, options);
 }
 
 const contractList = new Map();

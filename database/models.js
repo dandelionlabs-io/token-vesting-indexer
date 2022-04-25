@@ -5,7 +5,7 @@ const Factory = sequelize.define(
     "Factory",
     {
         initialBlockHeight: {
-            type: DataTypes.STRING,
+            type: DataTypes.INTEGER,
             allowNull: false,
         },
         address: {
@@ -22,9 +22,11 @@ const Factory = sequelize.define(
         website: {
             type: DataTypes.STRING
         },
-    },
-    {
-        timestamps: false,
+        network: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            primaryKey: true,
+        },
     }
 );
 
@@ -47,11 +49,8 @@ const Pool = sequelize.define(
             type: DataTypes.INTEGER,
         },
         syncedBlockHeight: {
-            type: DataTypes.STRING,
+            type: DataTypes.INTEGER,
         },
-    },
-    {
-        timestamps: false,
     }
 );
 
@@ -81,8 +80,7 @@ const Event = sequelize.define(
         timestamp:{
             type: DataTypes.INTEGER,
         },
-    },
-    { timestamps: false }
+    }
 );
 
 Pool.hasMany(Event);

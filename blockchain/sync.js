@@ -16,21 +16,27 @@ require("dotenv").config();
 const fs = require("fs"); // to fetch the abi of smartcontract
 const axios = require("axios");
 const blockchain = require("./blockchain");
-const factories = require("../database/factories");
+const { factories, networks } = require("../constants");
 const { Factory, Pool, Settings } = require("../database/models");
 const { logSync } = require("./logger");
 
 // Initiation of web3 and contract
-let web3 = blockchain.reInit();
+const web3list = new Map();
 
 const factory_abi = JSON.parse(fs.readFileSync("abis/factory.json", "utf-8"));
 
 const factoryContracts = []
 
+// create web3 instance depending on the network
 for (let factoryIndex = 0; factoryIndex < factories.length; factoryIndex++) {
+  if (!web3list.get(factories[factoryIndex]).network]) {
+    const networkInformation = networks[factories[factoryIndex].network];
+    web3list.set(blockchain.reInit(networkInformation.rpcUrl))
+  }
+
   factoryContracts.push(blockchain.loadContract(
-    web3,
-    factories.address,
+    web3list[factories[factoryIndex].network],
+    factories[factoryIndex].address,
     factory_abi
   ));
 }
@@ -54,7 +60,13 @@ const SyncByUpdate = async () => {
   await initPools();
 
   while (true === true) {
-    let syncedBlockHeight = await Settings.findOne({where: { key: 'syncedBlockHeight' }});
+    // get smaller block number to update from pools
+    let syncedBlockHeight = await Pool.findOne({
+      attributes: [[sequelize.fn('min', sequelize.col('syncedBlockHeight')), 'syncedBlockHeight']]
+    });
+
+    // if there's no block number, then we break
+    if (!syncedBlockHeight) break;
 
     if (!syncedBlockHeight) {
       const dataftx = await getFirstTransaction(process.env.FACTORY_CONTRACT_ADDRESS)
@@ -177,19 +189,23 @@ const currentTime = function () {
   }/${currentdate.getFullYear()} ${currentdate.getHours()}:${currentdate.getMinutes()}:${currentdate.getSeconds()}`;
 };
 
+/**
+ * @description Loads pools and create factories and pools in the database.
+ */
 const initPools = async () => {
   for (let factoryIndex = 0; factoryIndex < factoryContracts.length; i++) {
 
     const factory = await Factory.findByPk(factoryContracts[i].address);
 
     if (!factory) {
-      const dataftx = await getFirstTransaction(process.env.FACTORY_CONTRACT_ADDRESS)
-      await Factory.create({
+      const dataftx = await getFirstTransaction(factoryContracts[factoryIndex].network, process.env.FACTORY_CONTRACT_ADDRESS)
+      factory = await Factory.create({
         address: factoryContracts[factoryIndex].address,
         projectName: factoryContracts[factoryIndex].projectName,
         logoUrl: factoryContracts[factoryIndex].logoUrl(),
         website: factoryContracts[factoryIndex].website,
         initialBlockHeight: dataftx?.data.result[0].blockNumber,
+        network: factoryContracts[factoryIndex].network,
       });
     }
 
@@ -213,21 +229,26 @@ const initPools = async () => {
           start: poolData.startTime,
           end: poolData.endTime,
           factoryAddress: process.env.FACTORY_CONTRACT_ADDRESS,
+          factory.syncedBlockHeight: factory.initialBlockHeight
         });
     };
 
     pools.forEach((value, key) => {
-      value.push(blockchain.loadContract(web3, value[0], ABI));
+      value.push(blockchain.loadContract(web3list.get(factory.network), value[0], ABI));
     });
   }
 };
 
-const getFirstTransaction = async (contractAddress) => {
+const getFirstTransaction = async (network, contractAddress) => {
+
+  if (networks[network])
+    throw "'" + network + "' network information cannot be found. Check configuration files. Contract address: " + contractAddress
+
   const getContractCreationTxURL =
-      process.env.ETHERSCAN_URL + "api?module=account&action=txlist&address=" +
+      networks[network].etherscanUrl + "api?module=account&action=txlist&address=" +
       contractAddress +
       "&startblock=0&endblock=99999999&page=1&offset=10&sort=asc&apikey=" +
-      process.env.ETHERSCAN_API_KEY;
+      networks[network].etherscanApikey;
 
   return await axios.get(getContractCreationTxURL);
 };

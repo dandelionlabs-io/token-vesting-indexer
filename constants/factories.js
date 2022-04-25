@@ -3,8 +3,9 @@ const factories = [
         address: '0x55499a819A92211d5F8da19CDb4aCa774f5c8d68',
         projectName: '',
         logoUrl: '',
-        website: ''
+        website: '',
+        network: 'rinkeby'
     }
 ]
 
-module.exports.default = factories;
+module.exports = { factories };
