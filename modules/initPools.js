@@ -11,6 +11,38 @@ const vestingPoolABI = JSON.parse(fs.readFileSync("abis/vesting.json", "utf-8"))
 
 const web3list = new Map();
 
+const initFactory = async (factoryInfo) => {
+    // create web3 instance depending on the network
+    if (!web3list.get(factoryInfo.network)) {
+        const networkInformation = networks[factoryInfo.network];
+        web3list.set(factoryInfo.network, blockchain.reInit(networkInformation.rpcUrl))
+    }
+
+    // check if factory exists, if not creates it
+    let factory = await Factory.findByPk(factoryInfo.address);
+
+    if (!factory) {
+        const dataftx = await getFirstTransaction(factoryInfo.network, factoryInfo.address)
+        factory = await Factory.create({
+            address: factoryInfo.address,
+            projectName: factoryInfo.projectName,
+            logoUrl: factoryInfo.logoUrl,
+            website: factoryInfo.website,
+            initialBlockHeight: dataftx?.data.result[0].blockNumber,
+            network: factoryInfo.network,
+        });
+        console.log(`Created new factory instance in database: ${factory.network} - ${factory.address}`)
+    }
+
+    const factoryContract = blockchain.loadContract(
+        web3list.get(factoryInfo.network),
+        factoryInfo.address,
+        factoryABI
+    )
+
+    return { factory, factoryContract }
+}
+
 const initPools = async () => {
     console.log('Initiating pools...');
 
@@ -19,33 +51,7 @@ const initPools = async () => {
     for (let factoryIndex = 0; factoryIndex < factories.length; factoryIndex++) {
         const factoryInfo = factories[factoryIndex];
 
-        // create web3 instance depending on the network
-        if (!web3list.get(factoryInfo.network)) {
-            const networkInformation = networks[factoryInfo.network];
-            web3list.set(factoryInfo.network, blockchain.reInit(networkInformation.rpcUrl))
-        }
-
-        // check if factory exists, if not creates it
-        let factory = await Factory.findByPk(factoryInfo.address);
-
-        if (!factory) {
-            const dataftx = await getFirstTransaction(factoryInfo.network, factoryInfo.address)
-            factory = await Factory.create({
-                address: factoryInfo.address,
-                projectName: factoryInfo.projectName,
-                logoUrl: factoryInfo.logoUrl,
-                website: factoryInfo.website,
-                initialBlockHeight: dataftx?.data.result[0].blockNumber,
-                network: factoryInfo.network,
-            });
-            console.log(`Created new factory instance in database: ${factory.network} - ${factory.address}`)
-        }
-
-        const factoryContract = blockchain.loadContract(
-            web3list.get(factoryInfo.network),
-            factoryInfo.address,
-            factoryABI
-        )
+        const { factory, factoryContract } = await initFactory(factoryInfo, );
 
         // get all pool address belonging to that factory contract in that network
         const addresses = await factoryContract.methods.getPools().call();
