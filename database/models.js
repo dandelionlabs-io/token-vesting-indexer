@@ -61,8 +61,8 @@ const Event = sequelize.define(
     "Event",
     {
         name: {
-            type: DataTypes.ENUM,
-            values: ['GrantAdded', 'GrantTokensClaimed', 'ChangeInvestor', 'OwnershipTransferred'],
+            allowNull: false,
+            type: DataTypes.STRING,
         },
         blockNumber: {
             type: DataTypes.INTEGER,
@@ -75,9 +75,11 @@ const Event = sequelize.define(
             primaryKey: true,
         },
         returnValues: {
+            allowNull: false,
             type: DataTypes.JSONB,
         },
         timestamp:{
+            allowNull: false,
             type: DataTypes.INTEGER,
         },
     }

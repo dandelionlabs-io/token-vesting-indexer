@@ -6,4 +6,11 @@ module.exports = [
         website: '',
         network: 'rinkeby'
     },
+    {
+        address: '0x3730DFD6037c0F7cE11C87DCfa0C5aF665048E89',
+        projectName: '',
+        logoUrl: '',
+        website: '',
+        network: 'rinkeby'
+    },
 ]
