@@ -18,6 +18,8 @@ const axios = require("axios");
 const blockchain = require("./blockchain");
 const { Pool, Settings } = require("../database/models");
 const { logSync } = require("./logger");
+const simpleLogger =
+  require("simple-node-logger").createSimpleLogger("logs.log");
 
 // Initiation of web3 and contract
 let web3 = blockchain.reInit();
@@ -44,18 +46,23 @@ const ABI = JSON.parse(fs.readFileSync("abis/vesting.json", "utf-8"));
  * - Updating the data on File system and Database. (Most likely resources are busy)
  */
 const SyncByUpdate = async () => {
-
   await getPools();
-
   while (true === true) {
-    let syncedBlockHeight = await Settings.findOne({where: { key: 'syncedBlockHeight' }});
+    let syncedBlockHeight = await Settings.findOne({
+      where: { key: "syncedBlockHeight" },
+    });
 
     if (!syncedBlockHeight) {
-      const dataftx = await getFirstTransaction(process.env.FACTORY_CONTRACT_ADDRESS)
-      syncedBlockHeight = await Settings.create({ key: 'syncedBlockHeight', value: dataftx?.data.result[0].blockNumber });
+      const dataftx = await getFirstTransaction(
+        process.env.FACTORY_CONTRACT_ADDRESS
+      );
+      syncedBlockHeight = await Settings.create({
+        key: "syncedBlockHeight",
+        value: dataftx?.data.result[0].blockNumber,
+      });
     }
 
-    const latestBlockNum = await web3.eth.getBlockNumber()
+    const latestBlockNum = await web3.eth.getBlockNumber();
 
     if (isNaN(parseInt(latestBlockNum))) {
       console.log("Failed to connect to web3.");
@@ -66,15 +73,21 @@ const SyncByUpdate = async () => {
 
     /// "from" can't be greater than "to"
     if (syncedBlockHeight.value > latestBlockNum) {
-      console.log(`${currentTime()}: ${syncedBlockHeight.value} > ${latestBlockNum}`);
+      console.log(
+        `${currentTime()}: ${syncedBlockHeight.value} > ${latestBlockNum}`
+      );
 
       // Set to the latest block number from the blockchain.
-      await Settings.update({ value: latestBlockNum }, { where: { key: 'syncedBlockHeight' }}
-      )
+      await Settings.update(
+        { value: latestBlockNum },
+        { where: { key: "syncedBlockHeight" } }
+      );
     }
 
     if (syncedBlockHeight.value < latestBlockNum) {
-      console.log(`${currentTime()}: ${syncedBlockHeight.value} < ${latestBlockNum}`);
+      console.log(
+        `${currentTime()}: ${syncedBlockHeight.value} < ${latestBlockNum}`
+      );
       await log(latestBlockNum, syncedBlockHeight.value);
     }
 
@@ -123,7 +136,10 @@ let log = async function (latestBlockNum, syncedBlockHeight) {
     from += offset;
     to = from + offset > latestBlockNum ? latestBlockNum : from + offset;
 
-    await Settings.update({ value: to }, {where: { key: 'syncedBlockHeight' }})
+    await Settings.update(
+      { value: to },
+      { where: { key: "syncedBlockHeight" } }
+    );
   }
 };
 
@@ -131,13 +147,17 @@ let processEvents = async function (pool, dataName, from, to) {
   let poolEvents;
   try {
     poolEvents = (
-      await pool[2].getPastEvents("allEvents", {fromBlock: from + 1, toBlock: to,})
+      await pool[2].getPastEvents("allEvents", {
+        fromBlock: from + 1,
+        toBlock: to,
+      })
     ).sort((a, b) =>
       a.blockNumber > b.blockNumber ? 1 : b.blockNumber > a.blockNumber ? -1 : 0
     );
   } catch (error) {
     console.log(`${currentTime()}: event error:`);
     console.log(error.toString());
+    simpleLogger.error(error.message);
     await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
     process.exit(0);
     // Maybe to reinit the Web3?
@@ -150,6 +170,7 @@ let processEvents = async function (pool, dataName, from, to) {
     } catch (error) {
       console.error(`${currentTime()}: log error to database...`);
       console.error(error);
+      simpleLogger.error(error.message);
       process.exit();
     }
   }
@@ -193,7 +214,7 @@ const getPools = async () => {
         end: poolData.endTime,
         factoryAddress: process.env.FACTORY_CONTRACT_ADDRESS,
       });
-  };
+  }
 
   pools.forEach((value, key) => {
     value.push(blockchain.loadContract(web3, value[0], ABI));
@@ -202,10 +223,11 @@ const getPools = async () => {
 
 const getFirstTransaction = async (contractAddress) => {
   const getContractCreationTxURL =
-      process.env.ETHERSCAN_URL + "api?module=account&action=txlist&address=" +
-      contractAddress +
-      "&startblock=0&endblock=99999999&page=1&offset=10&sort=asc&apikey=" +
-      process.env.ETHERSCAN_API_KEY;
+    process.env.ETHERSCAN_URL +
+    "api?module=account&action=txlist&address=" +
+    contractAddress +
+    "&startblock=0&endblock=99999999&page=1&offset=10&sort=asc&apikey=" +
+    process.env.ETHERSCAN_API_KEY;
 
   return await axios.get(getContractCreationTxURL);
 };
