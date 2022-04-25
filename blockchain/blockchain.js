@@ -1,6 +1,6 @@
 let Web3 = require('web3');
 
-const reInit = function() {
+const reInit = function(rpcUrl) {
   var options = {
     timeout: 60000, // ms
 
@@ -13,12 +13,15 @@ const reInit = function() {
     }
   };
 
-  return new Web3(process.env.REMOTE_HTTP, options);
+  return new Web3(rpcUrl, options);
 }
 
+const contractList = new Map();
+
 const loadContract = function(web3, address, abi) {
-  const contract = new web3.eth.Contract(abi, address);
-  return contract;
+    if (!contractList.get(address))
+        contractList.set(address, new web3.eth.Contract(abi, address));
+  return contractList.get(address);
 };
 
 module.exports = {
