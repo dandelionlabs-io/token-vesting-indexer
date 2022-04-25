@@ -139,38 +139,34 @@ app.get("/:factoryAddress/pools", async (_req, res) => {
   const { factoryAddress } = _req.params;
   try {
     const pools = await Pool.findAll({
+      attributes: ['name', 'address', 'start', 'end'],
       include: [
         {
-          model: Event,
-          as: "Events",
+          model: Event, as: "Events",
+          attributes: ['returnValues'],
           limit: 1,
           where: { name: "OwnershipTransferred" },
-          order: [
-            ["blockNumber", "DESC"],
-            ["logIndex", "DESC"],
-          ],
+          order: [["blockNumber", "DESC"], ["logIndex", "DESC"],],
         },
         {
           model: Factory,
+          attributes: [],
           where: { 'address': factoryAddress },
         },
       ],
     });
 
-    const poolsAndOwners = [];
-    for (let i = 0; i < pools.length; i++) {
-      poolsAndOwners.push({
-        name: pools[i].name,
-        address: pools[i].address,
-        start: pools[i].start,
-        end: pools[i].end,
-        owner: pools[i].Events
-          ? pools[i].Events[0]?.returnValues.newOwner
-          : undefined,
-      });
-    }
-
-    res.send(poolsAndOwners);
+    res.send(pools.map((pool) => {
+      return {
+        name: pool.name,
+        address: pool.address,
+        start: pool.start,
+        end: pool.end,
+        owner: pool.Events
+            ? pool.Events[0]?.returnValues.newOwner
+            : undefined,
+      }
+    }));
   } catch (error) {
     console.log(error);
     log.error(error.message);
