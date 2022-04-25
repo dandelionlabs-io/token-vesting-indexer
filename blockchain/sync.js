@@ -25,7 +25,7 @@ const simpleLogger = require("simple-node-logger").createSimpleLogger("app.log")
  */
 const SyncByUpdate = async () => {
   simpleLogger.info(`${getCurrentTimeString()} - Sync started.`);
-  await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
+  await timeOut(2); // starts after 2 seconds
 
   const { networksToPools, web3list } = await initPools();
 

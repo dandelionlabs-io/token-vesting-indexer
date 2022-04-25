@@ -3,10 +3,10 @@ const { getCurrentTimeString } = require("../utils/time")
 const { timeOut } = require("../utils/timeOut")
 const { Pool } = require("../database/models");
 
-const logSync = async (arr, web3) => {
+const logSync = async (events, web3) => {
   const blockTimestamps = new Map();
-  for (let index = 0; index < arr.length; index++) {
-    const event = arr[index];
+  for (let index = 0; index < events.length; index++) {
+    const event = events[index];
 
     const existingEvent = await Event.findOne({where: {blockNumber: event.blockNumber, logIndex: event.logIndex}});
 
@@ -51,10 +51,11 @@ let log = async function (latestBlockNum, syncedBlockHeight, factory, web3) {
   }
 
   for (let i = 0; i < iterationCount; i++) {
-
-    for (const pool of factory.values()) {
-      await processEvents(pool[0].contract, from, to, web3);
-      await timeOut(1);
+    for (const poolsList of factory.values()) {
+      for (const pool of poolsList) {
+        await processEvents(pool.contract, from, to, web3);
+        await timeOut(1);
+      }
     }
 
     from += offset;
@@ -69,7 +70,7 @@ let processEvents = async function (pool, from, to, web3) {
   let poolEvents;
   try {
     poolEvents = (
-        await pool.getPastEvents("allEvents", {fromBlock: from + 1, toBlock: to,})
+        await pool.getPastEvents("allEvents", {fromBlock: from + 1, toBlock: to})
     ).sort((a, b) =>
         a.blockNumber > b.blockNumber ? 1 : b.blockNumber > a.blockNumber ? -1 : 0
     );
