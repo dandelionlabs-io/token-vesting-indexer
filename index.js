@@ -178,6 +178,81 @@ app.get("/:factoryAddress/pools", async (_req, res) => {
   }
 });
 
+
+app.get("/:network/factories", async (_req, res) => {
+  const { network } = _req.params;
+  try {
+    const factories = await Factory.findAll({
+      where: { network },
+      include: [
+        {
+          model: Pool,
+          as: "Pools",
+          include: [
+            {
+              model: Event,
+              as: "Events",
+              limit: 1,
+              where: { name: "OwnershipTransferred" },
+              order: [
+                ["blockNumber", "DESC"],
+                ["logIndex", "DESC"],
+              ],
+            },
+          ]
+        },
+      ],
+    });
+
+    const enrichedFactories = [];
+
+    for (const factory of factories) {
+      console.log(factory.dataValues)
+      const poolsAndOwners = [];
+      for (const pool of factory.Pools) {
+        poolsAndOwners.push({
+          name: pool.name,
+          address: pool.address,
+          start: pool.start,
+          end: pool.end,
+          owner: pool.Events
+              ? pool.Events[0]?.returnValues.newOwner
+              : undefined,
+        });
+        enrichedFactories.push({
+          address: factory.address,
+          projectName: factory.projectName,
+          logoUrl: factory.logoUrl,
+          website: factory.website,
+          pools: poolsAndOwners,
+        })
+      }
+    }
+
+    res.send(enrichedFactories);
+  } catch (error) {
+    console.log(error);
+    log.error(error.message);
+    res.status(500).send("Unexpected error");
+  }
+});
+
+
+app.get("/networks", async (_req, res) => {
+  try {
+    const networks = await Factory.findAll({
+      group: ['network'],
+      attributes: ['network'],
+    });
+
+    res.send(networks.map((el)=> el.network));
+  } catch (error) {
+    console.log(error);
+    log.error(error.message);
+    res.status(500).send("Unexpected error");
+  }
+});
+
 app.listen(port, async () => {
   try {
     SyncByUpdate();
