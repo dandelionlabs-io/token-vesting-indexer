@@ -24,11 +24,13 @@ const { sequelize } = require("../database/sequelize");
  */
 const SyncByUpdate = async () => {
   console.log(`${getCurrentTimeString()} - Sync started.`);
+  await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
 
   const { networksToPools, web3list } = await initPools();
 
   while (true === true) {
-    // TODO: control and await only after all networks are checked
+    // TODO: control and await only after all networks are checked.
+    // TODO: instead of control and await, maybe create different threads.
 
     // get smaller block number to update from pools and network
     for (const network of networksToPools.keys()) {

@@ -29,7 +29,6 @@ const initPools = async () => {
         let factory = await Factory.findByPk(factoryInfo.address);
 
         if (!factory) {
-            console.log(getFirstTransaction)
             const dataftx = await getFirstTransaction(factoryInfo.network, factoryInfo.address)
             factory = await Factory.create({
                 address: factoryInfo.address,
