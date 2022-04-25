@@ -12,6 +12,7 @@ const { Factory, Pool } = require("../database/models");
 const { getCurrentTimeString } = require("../utils/time")
 const { timeOut } = require("../utils/timeOut")
 const { sequelize } = require("../database/sequelize");
+const simpleLogger = require("simple-node-logger").createSimpleLogger("app.log");
 
 /**
  * @description This function reads the conf to get the latest updated block height.
@@ -23,7 +24,7 @@ const { sequelize } = require("../database/sequelize");
  * - Updating the data on File system and Database. (Most likely resources are busy)
  */
 const SyncByUpdate = async () => {
-  console.log(`${getCurrentTimeString()} - Sync started.`);
+  simpleLogger.info(`${getCurrentTimeString()} - Sync started.`);
   await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
 
   const { networksToPools, web3list } = await initPools();
@@ -61,7 +62,7 @@ const SyncByUpdate = async () => {
 
       // "from" can't be greater than "to"
       if (syncedBlockHeight > latestBlockNum) {
-        console.log(`${getCurrentTimeString()}: ${syncedBlockHeight} > ${latestBlockNum}, updating all pools with latest block num value.`);
+        simpleLogger.info(`${getCurrentTimeString()}: ${syncedBlockHeight} > ${latestBlockNum}, updating all pools with latest block num value.`);
 
         const factoryAddresses = Array.from(networksToPools.get(network).keys());
         // Set to the latest block number from the blockchain.
@@ -69,11 +70,11 @@ const SyncByUpdate = async () => {
       }
 
       if (syncedBlockHeight < latestBlockNum) {
-        console.log(`${getCurrentTimeString()}: ${syncedBlockHeight} < ${latestBlockNum}`);
+        simpleLogger.info(`${getCurrentTimeString()}: ${syncedBlockHeight} < ${latestBlockNum}`);
         await log(latestBlockNum, syncedBlockHeight, networksToPools.get(network), web3list.get(network));
       }
 
-      console.log(`${getCurrentTimeString()}: ${latestBlockNum} is synced`);
+      simpleLogger.info(`${getCurrentTimeString()}: ${latestBlockNum} is synced`);
 
       // if "from" and "to" are matching, database synced up to latest block.
       // Wait for appearance of a new block
@@ -81,7 +82,7 @@ const SyncByUpdate = async () => {
     }
   }
 
-  console.log(`${getCurrentTimeString()} - Sync finished.`);
+  simpleLogger.info(`${getCurrentTimeString()} - Sync finished.`);
 };
 
 module.exports = { SyncByUpdate };

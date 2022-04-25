@@ -4,7 +4,8 @@ const fs = require("fs");
 const express = require("express");
 const { SyncByUpdate, web3 } = require("./blockchain/sync");
 const { sequelize } = require("./database/sequelize");
-const { QueryTypes } = require('sequelize');
+const { QueryTypes } = require("sequelize");
+const log = require("simple-node-logger").createSimpleLogger("logs.log");
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -24,7 +25,7 @@ app.get("/:poolAddress/stakeholders", async (_req, res) => {
   const { poolAddress } = _req.params;
   try {
     const stakeholders = await sequelize.query(
-        `SELECT "Event"."returnValues"->>'recipient' as address,
+      `SELECT "Event"."returnValues"->>'recipient' as address,
                 SUM(("Event"."returnValues"->>'amount')::numeric) as amountLocked,
                 (SELECT SUM(("ch"."returnValues"->>'amountClaimed')::numeric)
                    FROM "Events" AS "ch"
@@ -40,35 +41,35 @@ app.get("/:poolAddress/stakeholders", async (_req, res) => {
           WHERE "Event"."PoolAddress" = :poolAddress
             AND "Event"."name" = 'GrantAdded'
           GROUP BY "returnValues"->>'recipient'`,
-        {
-          replacements: { poolAddress },
-          type: QueryTypes.SELECT
-        }
+      {
+        replacements: { poolAddress },
+        type: QueryTypes.SELECT,
+      }
     );
 
     const finalList = [];
     // check for blacklisted
     for (let i = 0; i < stakeholders.length; i++) {
       finalList.push(stakeholders[i]);
-      if(stakeholders[i].newOwner) {
+      if (stakeholders[i].newOwner) {
         let addressToCheck = stakeholders[i].newOwner;
         // if blacklisted found
         while (addressToCheck) {
           const newStakeholder = {
             address: addressToCheck,
             amountlocked: stakeholders[i].amountlocked,
-            amountClaimed: stakeholders[i].amountClaimed
-          }
+            amountClaimed: stakeholders[i].amountClaimed,
+          };
 
           let newGrantee = await Event.findOne({
             where: {
               PoolAddress: poolAddress,
-              name: 'ChangeInvestor',
+              name: "ChangeInvestor",
               returnValues: {
-                oldOwner: addressToCheck
-              }
-            }
-          })
+                oldOwner: addressToCheck,
+              },
+            },
+          });
           // add new stakeholder with old values to the list
           if (newGrantee) {
             addressToCheck = newGrantee.returnValues.newOwner;
@@ -85,6 +86,7 @@ app.get("/:poolAddress/stakeholders", async (_req, res) => {
     res.send(finalList);
   } catch (error) {
     console.log(error);
+    log.error(error.message);
     res.status(500).send("Error fetching the pool, probably doesn't exist");
   }
 });
@@ -95,21 +97,22 @@ app.get("/claims/:poolAddress/:userAddress", async (_req, res) => {
     const claims = await Event.findAll({
       where: {
         PoolAddress: poolAddress,
-        name: 'GrantTokensClaimed',
+        name: "GrantTokensClaimed",
         returnValues: {
-          recipient: userAddress
-        }
+          recipient: userAddress,
+        },
       },
       attributes: [
-        'timestamp',
-        [sequelize.json('returnValues.amountClaimed'), 'amountClaimed']
+        "timestamp",
+        [sequelize.json("returnValues.amountClaimed"), "amountClaimed"],
       ],
-      order: [['timestamp', 'DESC']]
+      order: [["timestamp", "DESC"]],
     });
 
     res.send(claims);
   } catch (error) {
     console.log(error);
+    log.error(error.message);
     res.status(500).send("Error fetching the pool, probably doesn't exist");
   }
 });
@@ -120,14 +123,15 @@ app.get("/:poolAddress/blacklist", async (_req, res) => {
     const blacklist = await Event.findAll({
       where: {
         PoolAddress: poolAddress,
-        name: 'ChangeInvestor'
+        name: "ChangeInvestor",
       },
-      attributes: [[sequelize.json('returnValues.oldOwner'), 'address']],
+      attributes: [[sequelize.json("returnValues.oldOwner"), "address"]],
     });
 
     res.send(blacklist);
   } catch (error) {
     console.log(error);
+    log.error(error.message);
     res.status(500).send("Unexpected error");
   }
 });
@@ -135,16 +139,18 @@ app.get("/:poolAddress/blacklist", async (_req, res) => {
 app.get("/pools", async (_req, res) => {
   try {
     const pools = await Pool.findAll({
-      include: [{
-        model: Event,
-        as: "Events",
-        limit: 1,
-        where: { name: 'OwnershipTransferred' },
-        order: [
-          ['blockNumber', 'DESC'],
-          ['logIndex', 'DESC'],
-        ]
-      }]
+      include: [
+        {
+          model: Event,
+          as: "Events",
+          limit: 1,
+          where: { name: "OwnershipTransferred" },
+          order: [
+            ["blockNumber", "DESC"],
+            ["logIndex", "DESC"],
+          ],
+        },
+      ],
     });
 
     const poolsAndOwners = [];
@@ -154,13 +160,16 @@ app.get("/pools", async (_req, res) => {
         address: pools[i].address,
         start: pools[i].start,
         end: pools[i].end,
-        owner: pools[i].Events ? pools[i].Events[0].returnValues.newOwner : undefined,
-      })
+        owner: pools[i].Events
+          ? pools[i].Events[0]?.returnValues.newOwner
+          : undefined,
+      });
     }
 
     res.send(poolsAndOwners);
   } catch (error) {
     console.log(error);
+    log.error(error.message);
     res.status(500).send("Unexpected error");
   }
 });
@@ -170,6 +179,7 @@ app.listen(port, async () => {
     SyncByUpdate();
   } catch (e) {
     console.log(e);
+    log.error(error.message);
     process.exit(1);
   }
   console.log(`Listening at port ${port}`);
