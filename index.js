@@ -4,6 +4,7 @@ const express = require("express");
 const { SyncByUpdate, web3 } = require("./blockchain/sync");
 const { sequelize } = require("./database/sequelize");
 const { QueryTypes } = require("sequelize");
+const { roleCodeToName } = require("./constants/roles")
 const log = require("simple-node-logger").createSimpleLogger("logs.log");
 
 const app = express();
@@ -20,8 +21,11 @@ app.get("/", (_req, res) => {
   res.send("Token Linear Vesting backend is running!");
 });
 
-app.get("/:poolAddress/stakeholders", async (_req, res) => {
-  const { poolAddress } = _req.params;
+/**
+ * @API get pool stakeholders for the combination network, factory address and pool address
+ */
+app.get("/:network/:poolAddress/stakeholders", async (_req, res) => {
+  const { network, poolAddress } = _req.params;
   try {
     const stakeholders = await sequelize.query(
       `SELECT "Event"."returnValues"->>'recipient' as address,
@@ -37,11 +41,14 @@ app.get("/:poolAddress/stakeholders", async (_req, res) => {
                     AND "ch"."name" = 'ChangeInvestor'
                     AND "ch"."PoolAddress" = :poolAddress) AS "newOwner"
            FROM "Events" AS "Event"
+          INNER JOIN "Pools" AS "Pool" ON "Pool"."address" = "Event"."PoolAddress"
+          INNER JOIN "Factories" AS "Factory" ON "Factory"."address" = "Pool"."FactoryAddress"
           WHERE "Event"."PoolAddress" = :poolAddress
             AND "Event"."name" = 'GrantAdded'
+            AND "Factory"."network" = :network
           GROUP BY "returnValues"->>'recipient'`,
       {
-        replacements: { poolAddress },
+        replacements: { poolAddress, network },
         type: QueryTypes.SELECT,
       }
     );
@@ -90,10 +97,27 @@ app.get("/:poolAddress/stakeholders", async (_req, res) => {
   }
 });
 
-app.get("/claims/:poolAddress/:userAddress", async (_req, res) => {
-  const { poolAddress, userAddress } = _req.params;
+/**
+ * @API list claims of users for the combination network, factory address and pool address
+ */
+app.get("/:network/:poolAddress/claims/:userAddress", async (_req, res) => {
+  const { network, poolAddress, userAddress } = _req.params;
   try {
     const claims = await Event.findAll({
+      include: [
+        {
+          model: Pool,
+          attributes: [],
+          where: { 'address': poolAddress },
+          include: [
+            {
+              model: Factory,
+              attributes: [ ],
+              where: { 'network': network },
+            },
+          ]
+        },
+      ],
       where: {
         PoolAddress: poolAddress,
         name: "GrantTokensClaimed",
@@ -143,9 +167,8 @@ app.get("/:factoryAddress/pools", async (_req, res) => {
       include: [
         {
           model: Event, as: "Events",
-          attributes: ['returnValues'],
-          limit: 1,
-          where: { name: "OwnershipTransferred" },
+          attributes: ['returnValues', 'name'],
+          where: { name: ["RoleGranted", 'RoleRevoked'] },
           order: [["blockNumber", "DESC"], ["logIndex", "DESC"],],
         },
         {
@@ -157,14 +180,37 @@ app.get("/:factoryAddress/pools", async (_req, res) => {
     });
 
     res.send(pools.map((pool) => {
+      const managers = new Map()
+
+      // assign operators as they come ordered on the events, if they have been granted and revoked,
+      // they will be updated with only the last value
+      for (const event of pool.Events) {
+        const manager = event.dataValues.returnValues.account;
+        // check the role types
+        const role = event.dataValues.returnValues.role;
+        if(!managers.get(manager))
+          managers.set(manager, new Map())
+
+        managers.get(manager).set(roleCodeToName(role), event.name === 'RoleGranted' ? true : false)
+      }
+
+      const managerResponse = []
+      for (const manager of managers) {
+        const roles = []
+        for (const role of manager[1]) {
+          if(role[1])
+            roles.push(role[0])
+        }
+        if (roles.length > 0)
+          managerResponse.push([manager[0], roles])
+      }
+
       return {
         name: pool.name,
         address: pool.address,
         start: pool.start,
         end: pool.end,
-        owner: pool.Events
-            ? pool.Events[0]?.returnValues.newOwner
-            : undefined,
+        managers: managerResponse
       }
     }));
   } catch (error) {
@@ -173,7 +219,6 @@ app.get("/:factoryAddress/pools", async (_req, res) => {
     res.status(500).send("Unexpected error");
   }
 });
-
 
 app.get("/:network/factories", async (_req, res) => {
   const { network } = _req.params;
