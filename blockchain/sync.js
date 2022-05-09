@@ -6,13 +6,14 @@
  * @contributor Leon Acosta <leon@dandelionlabs.io>
  */
 require("dotenv").config();
-const { initPools } = require("../modules/initPools")
-const { log } = require("../modules/logger")
+const { initPools } = require("../modules/initPools");
+const { log } = require("../modules/logger");
 const { Factory, Pool } = require("../database/models");
-const { getCurrentTimeString } = require("../utils/time")
-const { timeOut } = require("../utils/timeOut")
+const { getCurrentTimeString } = require("../utils/time");
+const { timeOut } = require("../utils/timeOut");
 const { sequelize } = require("../database/sequelize");
-const simpleLogger = require("simple-node-logger").createSimpleLogger("app.log");
+const simpleLogger =
+  require("simple-node-logger").createSimpleLogger("app.log");
 
 /**
  * @description This function reads the conf to get the latest updated block height.
@@ -36,22 +37,27 @@ const SyncByUpdate = async () => {
     // get smaller block number to update from pools and network
     for (const network of networksToPools.keys()) {
       const networkSync = await Factory.findAll({
-        attributes: [[sequelize.fn('min', sequelize.col('Pools.syncedBlockHeight')), 'minSyncedBlockHeight'],],
-        group: ['network'],
+        attributes: [
+          [
+            sequelize.fn("min", sequelize.col("Pools.syncedBlockHeight")),
+            "minSyncedBlockHeight",
+          ],
+        ],
+        group: ["network"],
         include: [{ model: Pool, attributes: [] }],
-        where: { 'network': network },
-        raw: true
+        where: { network: network },
+        raw: true,
       });
 
-      if (!networkSync) {
-        console.log('No pools were found.');
+      if (!networkSync[0].minSyncedBlockHeight) {
+        console.log("No pools were found.");
         await timeOut(process.env.LISTENER_SLEEP_INTERVAL);
         continue;
       }
 
       const syncedBlockHeight = networkSync[0].minSyncedBlockHeight;
 
-      const latestBlockNum = await web3list.get(network).eth.getBlockNumber()
+      const latestBlockNum = await web3list.get(network).eth.getBlockNumber();
 
       if (isNaN(parseInt(latestBlockNum))) {
         console.log("Failed to connect to web3.");
@@ -62,19 +68,35 @@ const SyncByUpdate = async () => {
 
       // "from" can't be greater than "to"
       if (syncedBlockHeight > latestBlockNum) {
-        simpleLogger.info(`${getCurrentTimeString()}: ${syncedBlockHeight} > ${latestBlockNum}, updating all pools with latest block num value.`);
+        simpleLogger.info(
+          `${getCurrentTimeString()}: ${syncedBlockHeight} > ${latestBlockNum}, updating all pools with latest block num value.`
+        );
 
-        const factoryAddresses = Array.from(networksToPools.get(network).keys());
+        const factoryAddresses = Array.from(
+          networksToPools.get(network).keys()
+        );
         // Set to the latest block number from the blockchain.
-        await Pool.update({ syncedBlockHeight: latestBlockNum }, { where: { 'FactoryAddress': factoryAddresses } });
+        await Pool.update(
+          { syncedBlockHeight: latestBlockNum },
+          { where: { FactoryAddress: factoryAddresses } }
+        );
       }
 
       if (syncedBlockHeight < latestBlockNum) {
-        simpleLogger.info(`${getCurrentTimeString()}: ${syncedBlockHeight} < ${latestBlockNum}`);
-        await log(latestBlockNum, syncedBlockHeight, networksToPools.get(network), web3list.get(network));
+        simpleLogger.info(
+          `${getCurrentTimeString()}: ${syncedBlockHeight} < ${latestBlockNum}`
+        );
+        await log(
+          latestBlockNum,
+          syncedBlockHeight,
+          networksToPools.get(network),
+          web3list.get(network)
+        );
       }
 
-      simpleLogger.info(`${getCurrentTimeString()}: ${latestBlockNum} is synced`);
+      simpleLogger.info(
+        `${getCurrentTimeString()}: ${latestBlockNum} is synced`
+      );
 
       // if "from" and "to" are matching, database synced up to latest block.
       // Wait for appearance of a new block

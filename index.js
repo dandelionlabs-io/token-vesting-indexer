@@ -4,7 +4,8 @@ const express = require("express");
 const { SyncByUpdate, web3 } = require("./blockchain/sync");
 const { sequelize } = require("./database/sequelize");
 const { QueryTypes } = require("sequelize");
-const { roleCodeToName } = require("./constants/roles")
+const { Op } = require("sequelize");
+const { roleCodeToName } = require("./constants/roles");
 const log = require("simple-node-logger").createSimpleLogger("logs.log");
 
 const app = express();
@@ -63,7 +64,7 @@ app.get("/:network/:poolAddress/stakeholders", async (_req, res) => {
         while (addressToCheck) {
           const newStakeholder = {
             address: addressToCheck,
-            amountlocked: stakeholders[i].amountlocked,
+            amountLocked: stakeholders[i].amountLocked,
             amountClaimed: stakeholders[i].amountClaimed,
           };
 
@@ -108,21 +109,21 @@ app.get("/:network/:poolAddress/claims/:userAddress", async (_req, res) => {
         {
           model: Pool,
           attributes: [],
-          where: { 'address': poolAddress },
+          where: { address: poolAddress },
           include: [
             {
               model: Factory,
-              attributes: [ ],
-              where: { 'network': network },
+              attributes: [],
+              where: { network: network },
             },
-          ]
+          ],
         },
       ],
       where: {
         PoolAddress: poolAddress,
         name: "GrantTokensClaimed",
         returnValues: {
-          recipient: userAddress,
+          recipient: { [Op.iLike]: userAddress },
         },
       },
       attributes: [
@@ -163,56 +164,64 @@ app.get("/:factoryAddress/pools", async (_req, res) => {
   const { factoryAddress } = _req.params;
   try {
     const pools = await Pool.findAll({
-      attributes: ['name', 'address', 'start', 'end'],
+      attributes: ["name", "address", "start", "end"],
       include: [
         {
-          model: Event, as: "Events",
-          attributes: ['returnValues', 'name'],
-          where: { name: ["RoleGranted", 'RoleRevoked'] },
-          order: [["blockNumber", "DESC"], ["logIndex", "DESC"],],
+          model: Event,
+          as: "Events",
+          attributes: ["returnValues", "name"],
+          where: { name: ["RoleGranted", "RoleRevoked"] },
+          order: [
+            ["blockNumber", "DESC"],
+            ["logIndex", "DESC"],
+          ],
         },
         {
           model: Factory,
           attributes: [],
-          where: { 'address': factoryAddress },
+          where: { address: factoryAddress },
         },
       ],
     });
 
-    res.send(pools.map((pool) => {
-      const managers = new Map()
+    res.send(
+      pools.map((pool) => {
+        const managers = new Map();
 
-      // assign operators as they come ordered on the events, if they have been granted and revoked,
-      // they will be updated with only the last value
-      for (const event of pool.Events) {
-        const manager = event.dataValues.returnValues.account;
-        // check the role types
-        const role = event.dataValues.returnValues.role;
-        if(!managers.get(manager))
-          managers.set(manager, new Map())
+        // assign operators as they come ordered on the events, if they have been granted and revoked,
+        // they will be updated with only the last value
+        for (const event of pool.Events) {
+          const manager = event.dataValues.returnValues.account;
+          // check the role types
+          const role = event.dataValues.returnValues.role;
+          if (!managers.get(manager)) managers.set(manager, new Map());
 
-        managers.get(manager).set(roleCodeToName(role), event.name === 'RoleGranted' ? true : false)
-      }
-
-      const managerResponse = []
-      for (const manager of managers) {
-        const roles = []
-        for (const role of manager[1]) {
-          if(role[1])
-            roles.push(role[0])
+          managers
+            .get(manager)
+            .set(
+              roleCodeToName(role),
+              event.name === "RoleGranted" ? true : false
+            );
         }
-        if (roles.length > 0)
-          managerResponse.push([manager[0], roles])
-      }
 
-      return {
-        name: pool.name,
-        address: pool.address,
-        start: pool.start,
-        end: pool.end,
-        managers: managerResponse
-      }
-    }));
+        const managerResponse = [];
+        for (const manager of managers) {
+          const roles = [];
+          for (const role of manager[1]) {
+            if (role[1]) roles.push(role[0]);
+          }
+          if (roles.length > 0) managerResponse.push([manager[0], roles]);
+        }
+
+        return {
+          name: pool.name,
+          address: pool.address,
+          start: pool.start,
+          end: pool.end,
+          managers: managerResponse,
+        };
+      })
+    );
   } catch (error) {
     console.log(error);
     log.error(error.message);
@@ -240,7 +249,7 @@ app.get("/:network/factories", async (_req, res) => {
                 ["logIndex", "DESC"],
               ],
             },
-          ]
+          ],
         },
       ],
     });
@@ -248,7 +257,7 @@ app.get("/:network/factories", async (_req, res) => {
     const enrichedFactories = [];
 
     for (const factory of factories) {
-      console.log(factory.dataValues)
+      console.log(factory.dataValues);
       const poolsAndOwners = [];
       for (const pool of factory.Pools) {
         poolsAndOwners.push({
@@ -257,8 +266,8 @@ app.get("/:network/factories", async (_req, res) => {
           start: pool.start,
           end: pool.end,
           owner: pool.Events
-              ? pool.Events[0]?.returnValues.newOwner
-              : undefined,
+            ? pool.Events[0]?.returnValues.newOwner
+            : undefined,
         });
         enrichedFactories.push({
           address: factory.address,
@@ -266,7 +275,7 @@ app.get("/:network/factories", async (_req, res) => {
           logoUrl: factory.logoUrl,
           website: factory.website,
           pools: poolsAndOwners,
-        })
+        });
       }
     }
 
@@ -278,22 +287,20 @@ app.get("/:network/factories", async (_req, res) => {
   }
 });
 
-
 app.get("/networks", async (_req, res) => {
   try {
     const networks = await Factory.findAll({
-      group: ['network'],
-      attributes: ['network'],
+      group: ["network"],
+      attributes: ["network"],
     });
 
-    res.send(networks.map((el)=> el.network));
+    res.send(networks.map((el) => el.network));
   } catch (error) {
     console.log(error);
     log.error(error.message);
     res.status(500).send("Unexpected error");
   }
 });
-
 
 app.get("/:network/factories", async (_req, res) => {
   const { network } = _req.params;
@@ -315,7 +322,7 @@ app.get("/:network/factories", async (_req, res) => {
                 ["logIndex", "DESC"],
               ],
             },
-          ]
+          ],
         },
       ],
     });
@@ -323,7 +330,7 @@ app.get("/:network/factories", async (_req, res) => {
     const enrichedFactories = [];
 
     for (const factory of factories) {
-      console.log(factory.dataValues)
+      console.log(factory.dataValues);
       const poolsAndOwners = [];
       for (const pool of factory.Pools) {
         poolsAndOwners.push({
@@ -332,8 +339,8 @@ app.get("/:network/factories", async (_req, res) => {
           start: pool.start,
           end: pool.end,
           owner: pool.Events
-              ? pool.Events[0]?.returnValues.newOwner
-              : undefined,
+            ? pool.Events[0]?.returnValues.newOwner
+            : undefined,
         });
         enrichedFactories.push({
           address: factory.address,
@@ -341,27 +348,11 @@ app.get("/:network/factories", async (_req, res) => {
           logoUrl: factory.logoUrl,
           website: factory.website,
           pools: poolsAndOwners,
-        })
+        });
       }
     }
 
     res.send(enrichedFactories);
-  } catch (error) {
-    console.log(error);
-    log.error(error.message);
-    res.status(500).send("Unexpected error");
-  }
-});
-
-
-app.get("/networks", async (_req, res) => {
-  try {
-    const networks = await Factory.findAll({
-      group: ['network'],
-      attributes: ['network'],
-    });
-
-    res.send(networks.map((el)=> el.network));
   } catch (error) {
     console.log(error);
     log.error(error.message);
