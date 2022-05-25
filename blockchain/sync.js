@@ -28,12 +28,11 @@ const SyncByUpdate = async () => {
   simpleLogger.info(`${getCurrentTimeString()} - Sync started.`);
   await timeOut(2); // starts after 2 seconds
 
-  const { networksToPools, web3list } = await initPools();
-
   while (true === true) {
     // TODO: control and await only after all networks are checked.
     // TODO: instead of control and await, maybe create different threads.
 
+    const { networksToPools, web3list } = await initPools();
     // get smaller block number to update from pools and network
     for (const network of networksToPools.keys()) {
       const networkSync = await Factory.findAll({
