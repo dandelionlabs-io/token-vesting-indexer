@@ -1,13 +1,18 @@
 const { Sequelize } = require("sequelize");
 
 const sequelize = new Sequelize(
-    process.env.MYSQL_DATABASE_NAME,
-    process.env.MYSQL_DATABASE_USER,
-    process.env.MYSQL_DATABASE_PASSWORD,
+    process.env.DATABASE_NAME,
+    process.env.DATABASE_USER,
+    process.env.DATABASE_PASSWORD,
     {
-        host: process.env.MYSQL_DATABASE_HOST,
-        dialect: process.env.MYSQL_DATABASE_DIALECT,
+        host: process.env.DATABASE_HOST,
+        port: process.env.DATABASE_PORT,
+        dialect: process.env.DATABASE_DIALECT,
+        database: process.env.DATABASE_NAME,
+        username: process.env.DATABASE_USER,
+        password: process.env.DATABASE_PASSWORD,
         logging: false,
+        ssl: true
     }
 );
 
