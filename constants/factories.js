@@ -1,6 +1,6 @@
 module.exports = [
   {
-    address: "0x1A80A11225D5925c86e714E27d02eCEf68033759",
+    address: "0xE0d7A5d8149EDD856876ba7005550F5594001804",
     projectName: "",
     logoUrl: "",
     website: "",
