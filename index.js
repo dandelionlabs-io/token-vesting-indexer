@@ -1,7 +1,8 @@
 require("dotenv").config();
 
 const express = require("express");
-const { SyncByUpdate, web3 } = require("./blockchain/sync");
+const morgan = require("morgan");
+const { SyncByUpdate } = require("./blockchain/sync");
 const { sequelize } = require("./database/sequelize");
 const { QueryTypes } = require("sequelize");
 const { Op } = require("sequelize");
@@ -18,6 +19,8 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(morgan('combined'));
+
 app.get("/", (_req, res) => {
   res.send("Token Linear Vesting backend is running!");
 });
@@ -25,22 +28,21 @@ app.get("/", (_req, res) => {
 /**
  * @API get pool stakeholders for the combination network, factory address and pool address
  */
-app.get("/:network/:poolAddress/stakeholders", async (_req, res) => {
-  const { network, poolAddress } = _req.params;
-  try {
-    const stakeholders = await sequelize.query(
-      `SELECT "Event"."returnValues"->>'recipient' as address,
-                SUM(("Event"."returnValues"->>'amount')::numeric) as amountLocked,
-                (SELECT SUM(("ch"."returnValues"->>'amountClaimed')::numeric)
-                   FROM "Events" AS "ch"
-                  WHERE "ch"."returnValues"->>'recipient' = min("Event"."returnValues"->>'recipient')
-                    AND "ch"."name" = 'GrantTokensClaimed'
-                    AND "ch"."PoolAddress" = :poolAddress) AS "amountClaimed",
-                (SELECT COALESCE("ch"."returnValues"->>'newOwner', 'true')
-                   FROM "Events" AS "ch"
-                  WHERE "ch"."returnValues"->>'oldOwner' = min("Event"."returnValues"->>'recipient')
-                    AND "ch"."name" = 'ChangeInvestor'
-                    AND "ch"."PoolAddress" = :poolAddress) AS "newOwner"
+
+const handleGetStakeholder = async(network, poolAddress) => {
+  const stakeholders = await sequelize.query(
+    `SELECT "Event"."returnValues"->>'recipient' as address,
+      SUM(("Event"."returnValues"->>'amount')::numeric) as amountLocked,
+      (SELECT SUM(("ch"."returnValues"->>'amountClaimed')::numeric)
+         FROM "Events" AS "ch"
+        WHERE "ch"."returnValues"->>'recipient' = min("Event"."returnValues"->>'recipient')
+          AND "ch"."name" = 'GrantTokensClaimed'
+          AND "ch"."PoolAddress" = :poolAddress) AS "amountClaimed",
+      (SELECT COALESCE("ch"."returnValues"->>'newOwner', 'true')
+         FROM "Events" AS "ch"
+        WHERE "ch"."returnValues"->>'oldOwner' = min("Event"."returnValues"->>'recipient')
+          AND "ch"."name" = 'ChangeInvestor'
+          AND "ch"."PoolAddress" = :poolAddress) AS "newOwner"
            FROM "Events" AS "Event"
           INNER JOIN "Pools" AS "Pool" ON "Pool"."address" = "Event"."PoolAddress"
           INNER JOIN "Factories" AS "Factory" ON "Factory"."address" = "Pool"."FactoryAddress"
@@ -48,48 +50,55 @@ app.get("/:network/:poolAddress/stakeholders", async (_req, res) => {
             AND "Event"."name" = 'GrantAdded'
             AND "Factory"."network" = :network
           GROUP BY "returnValues"->>'recipient'`,
-      {
-        replacements: { poolAddress, network },
-        type: QueryTypes.SELECT,
-      }
-    );
+    {
+      replacements: { poolAddress, network },
+      type: QueryTypes.SELECT,
+    }
+  );
 
-    const finalList = [];
-    // check for blacklisted
-    for (let i = 0; i < stakeholders.length; i++) {
-      finalList.push(stakeholders[i]);
-      if (stakeholders[i].newOwner) {
-        let addressToCheck = stakeholders[i].newOwner;
-        // if blacklisted found
-        while (addressToCheck) {
-          const newStakeholder = {
-            address: addressToCheck,
-            amountLocked: stakeholders[i].amountLocked,
-            amountClaimed: stakeholders[i].amountClaimed,
-          };
+  const finalList = [];
+  // check for blacklisted
+  for (let i = 0; i < stakeholders.length; i++) {
+    finalList.push(stakeholders[i]);
+    if (stakeholders[i].newOwner) {
+      let addressToCheck = stakeholders[i].newOwner;
+      // if blacklisted found
+      while (addressToCheck) {
+        const newStakeholder = {
+          address: addressToCheck,
+          amountLocked: stakeholders[i].amountLocked,
+          amountClaimed: stakeholders[i].amountClaimed,
+        };
 
-          let newGrantee = await Event.findOne({
-            where: {
-              PoolAddress: poolAddress,
-              name: "ChangeInvestor",
-              returnValues: {
-                oldOwner: addressToCheck,
-              },
+        let newGrantee = await Event.findOne({
+          where: {
+            PoolAddress: poolAddress,
+            name: "ChangeInvestor",
+            returnValues: {
+              oldOwner: addressToCheck,
             },
-          });
-          // add new stakeholder with old values to the list
-          if (newGrantee) {
-            addressToCheck = newGrantee.returnValues.newOwner;
-            newStakeholder.newOwner = newGrantee.returnValues.newOwner;
-          } else {
-            addressToCheck = null;
-            newStakeholder.newOwner = null;
-          }
-          finalList.push(newStakeholder);
+          },
+        });
+        // add new stakeholder with old values to the list
+        if (newGrantee) {
+          addressToCheck = newGrantee.returnValues.newOwner;
+          newStakeholder.newOwner = newGrantee.returnValues.newOwner;
+        } else {
+          addressToCheck = null;
+          newStakeholder.newOwner = null;
         }
+        finalList.push(newStakeholder);
       }
     }
+  }
 
+  return finalList;
+}
+
+app.get("/:network/:poolAddress/stakeholders", async (_req, res) => {
+  const { network, poolAddress } = _req.params;
+  try {
+    const finalList = await handleGetStakeholder(network, poolAddress)
     res.send(finalList);
   } catch (error) {
     console.log(error);
@@ -160,11 +169,27 @@ app.get("/:poolAddress/blacklist", async (_req, res) => {
   }
 });
 
-app.get("/:factoryAddress/pools", async (_req, res) => {
-  const { factoryAddress } = _req.params;
+app.get("/:factoryAddress/:account/:filterStatus/pools", async (_req, res) => {
+  const { factoryAddress, filterStatus = 'all', account = '0x1BC7bd8665646Ba89E06cc1143b0015D25F0E87B' } = _req.params;
+  const  { page, size, sort = 'ASC' } = _req.query; // DESC
+
+  const filterPool = {
+    activePool: 'activePool',
+    all: 'all',
+    upcoming: 'upcoming',
+    claimable: 'claimable',
+    claimed: 'claimed',
+    banned: 'banned'
+  }
+
   try {
     const pools = await Pool.findAll({
       attributes: ["name", "address", "start", "end"],
+      order: [
+        ['name', `${sort}`],
+      ],
+      limit: filterStatus === filterPool.all ? size : null,
+      offset: filterStatus === filterPool.all ? (page - 1) * size : null,
       include: [
         {
           model: Event,
@@ -184,44 +209,136 @@ app.get("/:factoryAddress/pools", async (_req, res) => {
       ],
     });
 
-    res.send(
-      pools.map((pool) => {
-        const managers = new Map();
+    const poolSends =  await Promise.all(
+      pools.map(async(pool) => {
+      const managers = new Map();
 
-        // assign operators as they come ordered on the events, if they have been granted and revoked,
-        // they will be updated with only the last value
-        for (const event of pool.Events) {
-          const manager = event.dataValues.returnValues.account;
-          // check the role types
-          const role = event.dataValues.returnValues.role;
-          if (!managers.get(manager)) managers.set(manager, new Map());
+      const stakeholderPoolsRes = await handleGetStakeholder('rinkeby', pool.dataValues.address);
+      const stakeholders = stakeholderPoolsRes.filter(item => !item.newOwner);
+      const isStakeholder = stakeholders.some(item => item.address === account);
 
-          managers
-            .get(manager)
-            .set(
-              roleCodeToName(role),
-              event.name === "RoleGranted" ? true : false
-            );
-        }
-
-        const managerResponse = [];
-        for (const manager of managers) {
-          const roles = [];
-          for (const role of manager[1]) {
-            if (role[1]) roles.push(role[0]);
-          }
-          if (roles.length > 0) managerResponse.push([manager[0], roles]);
-        }
-
-        return {
-          name: pool.name,
-          address: pool.address,
-          start: pool.start,
-          end: pool.end,
-          managers: managerResponse,
-        };
+      const blackListMode = await Event.findAll({
+        where: {
+          PoolAddress: pool.dataValues.address,
+          name: "ChangeInvestor",
+        },
+        attributes: [[sequelize.json("returnValues.oldOwner"), "address"]],
       })
-    );
+      const blackList = blackListMode.map(item => item.dataValues.address);
+
+      for (const event of pool.Events) {
+        const manager = event.dataValues.returnValues.account;
+        const role = event.dataValues.returnValues.role;
+
+        if (!managers.get(manager)) {
+          managers.set(manager, new Map())
+        }
+
+        managers
+          .get(manager)
+          .set(
+            roleCodeToName(role),
+            event.name === "RoleGranted" ? true : false
+          )
+          .set(
+            roleCodeToName('STAKEHOLDER'),
+            isStakeholder
+          );
+      }
+
+      const managerResponse = [];
+      for (const manager of managers) {
+        const roles = [];
+        for (const role of manager[1]) {
+          if (role[1]) roles.push(role[0]);
+        }
+        if (roles.length > 0) managerResponse.push([manager[0], roles]);
+      }
+
+      return {
+        name: pool.name,
+        address: pool.address,
+        start: pool.start,
+        end: pool.end,
+        stakeholders: stakeholders,
+        managers: managerResponse,
+        blackList: blackList
+      };
+    }));
+
+    let poolsFilter = [];
+    let totalPools = 0;
+    const currentlyTime = (new Date()).getTime() / 1000
+
+    if(filterStatus === filterPool.all) {
+      poolsFilter = poolSends;
+      totalPools = poolsFilter.length;
+
+      poolsFilter = poolsFilter.slice(page.size - 1, size)
+    }
+
+    if(filterStatus === filterPool.banned) {
+      poolsFilter = poolSends.filter(item => item.blackList.includes(account));
+      totalPools = poolsFilter.length;
+
+      poolsFilter = poolsFilter.slice(page.size - 1, size)
+    }
+
+    if(filterStatus === filterPool.upcoming) {
+      poolsFilter = poolSends.filter(item => !item.blackList.includes(account) && item.start <= currentlyTime);
+      totalPools = poolsFilter.length;
+
+      poolsFilter = poolsFilter.slice(page.size - 1, size)
+    }
+
+    if(filterStatus === filterPool.activePool) {
+      poolsFilter = poolSends.filter(
+        item => item.start <= currentlyTime
+        && currentlyTime <= item.end
+        && !item.blackList.includes(account)
+        && item.stakeholders.some(stake => stake.address === account));
+
+      totalPools = poolsFilter.length;
+      poolsFilter = poolsFilter.slice(page.size - 1, size)
+    }
+
+    if(filterStatus === filterPool.banned) {
+      poolsFilter = poolSends.filter(item => item.blackList.includes(account));
+
+      totalPools = poolsFilter.length;
+      poolsFilter = poolsFilter.slice(page.size - 1, size)
+    }
+
+    if(filterStatus === filterPool.claimed) {
+      poolsFilter = poolSends.filter(
+        item => !item.blackList.includes(account)
+          && item.start <= currentlyTime
+          && currentlyTime <= item.end
+          && item.stakeholders.some(stake => (stake.address === account && !parseInt(stake.amountlocked)))
+      );
+
+      totalPools = poolsFilter.length;
+      poolsFilter = poolsFilter.slice(page.size - 1, size)
+    }
+
+    if(filterStatus === filterPool.claimable) {
+      poolsFilter = poolSends.filter(
+        item => !item.blackList.includes(account)
+          && item.start <= currentlyTime
+          && currentlyTime <= item.end
+          && item.stakeholders.some(stake => (stake.address === account && parseInt(stake.amountlocked) > 0))
+      );
+
+      totalPools = poolsFilter.length;
+      poolsFilter = poolsFilter.slice(page.size - 1, size)
+    }
+
+    res.send({
+      totalPools,
+      page,
+      size,
+      data: poolsFilter
+    });
   } catch (error) {
     console.log(error);
     log.error(error.message);
