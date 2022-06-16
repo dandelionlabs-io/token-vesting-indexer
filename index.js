@@ -170,8 +170,11 @@ app.get("/:poolAddress/blacklist", async (_req, res) => {
 });
 
 app.get("/:factoryAddress/:account/:filterStatus/pools", async (_req, res) => {
-  const { factoryAddress, filterStatus = 'all', account = '0x1BC7bd8665646Ba89E06cc1143b0015D25F0E87B' } = _req.params;
-  const  { page, size, sort = 'ASC' } = _req.query; // DESC
+  const { factoryAddress, filterStatus, account } = _req.params;
+  const  { page, size, sort } = _req.query; // DESC
+
+  const pageNumber = parseInt(page);
+  const sizeNumber = parseInt(size);
 
   const filterPool = {
     activePool: 'activePool',
@@ -183,13 +186,14 @@ app.get("/:factoryAddress/:account/:filterStatus/pools", async (_req, res) => {
   }
 
   try {
-    const pools = await Pool.findAll({
+    const count = await Pool.count();
+    const { rows }  = await Pool.findAndCountAll({
       attributes: ["name", "address", "start", "end"],
       order: [
         ['name', `${sort}`],
       ],
-      limit: filterStatus === filterPool.all ? size : null,
-      offset: filterStatus === filterPool.all ? (page - 1) * size : null,
+      limit: filterStatus === filterPool.all ? sizeNumber : null,
+      offset: filterStatus === filterPool.all ? (pageNumber - 1) * sizeNumber : null,
       include: [
         {
           model: Event,
@@ -210,7 +214,7 @@ app.get("/:factoryAddress/:account/:filterStatus/pools", async (_req, res) => {
     });
 
     const poolSends =  await Promise.all(
-      pools.map(async(pool) => {
+      rows.map(async(pool) => {
       const managers = new Map();
 
       const stakeholderPoolsRes = await handleGetStakeholder('rinkeby', pool.dataValues.address);
@@ -267,46 +271,25 @@ app.get("/:factoryAddress/:account/:filterStatus/pools", async (_req, res) => {
     }));
 
     let poolsFilter = [];
-    let totalPools = 0;
     const currentlyTime = (new Date()).getTime() / 1000
-
-    if(filterStatus === filterPool.all) {
-      poolsFilter = poolSends;
-      totalPools = poolsFilter.length;
-
-      poolsFilter = poolsFilter.slice(page.size - 1, size)
-    }
 
     if(filterStatus === filterPool.banned) {
       poolsFilter = poolSends.filter(item => item.blackList.includes(account));
-      totalPools = poolsFilter.length;
-
-      poolsFilter = poolsFilter.slice(page.size - 1, size)
     }
 
     if(filterStatus === filterPool.upcoming) {
-      poolsFilter = poolSends.filter(item => !item.blackList.includes(account) && item.start <= currentlyTime);
-      totalPools = poolsFilter.length;
-
-      poolsFilter = poolsFilter.slice(page.size - 1, size)
+      poolsFilter = poolSends.filter(item => !item.blackList.includes(account) && item.start > currentlyTime);
     }
 
     if(filterStatus === filterPool.activePool) {
       poolsFilter = poolSends.filter(
         item => item.start <= currentlyTime
         && currentlyTime <= item.end
-        && !item.blackList.includes(account)
-        && item.stakeholders.some(stake => stake.address === account));
-
-      totalPools = poolsFilter.length;
-      poolsFilter = poolsFilter.slice(page.size - 1, size)
+        && !item.blackList.includes(account));
     }
 
     if(filterStatus === filterPool.banned) {
       poolsFilter = poolSends.filter(item => item.blackList.includes(account));
-
-      totalPools = poolsFilter.length;
-      poolsFilter = poolsFilter.slice(page.size - 1, size)
     }
 
     if(filterStatus === filterPool.claimed) {
@@ -316,9 +299,6 @@ app.get("/:factoryAddress/:account/:filterStatus/pools", async (_req, res) => {
           && currentlyTime <= item.end
           && item.stakeholders.some(stake => (stake.address === account && !parseInt(stake.amountlocked)))
       );
-
-      totalPools = poolsFilter.length;
-      poolsFilter = poolsFilter.slice(page.size - 1, size)
     }
 
     if(filterStatus === filterPool.claimable) {
@@ -328,15 +308,18 @@ app.get("/:factoryAddress/:account/:filterStatus/pools", async (_req, res) => {
           && currentlyTime <= item.end
           && item.stakeholders.some(stake => (stake.address === account && parseInt(stake.amountlocked) > 0))
       );
+    }
 
-      totalPools = poolsFilter.length;
-      poolsFilter = poolsFilter.slice(page.size - 1, size)
+    if(filterStatus === filterPool.all) {
+      poolsFilter = poolSends;
+    } else {
+      poolsFilter = poolsFilter.slice((pageNumber - 1) * sizeNumber, pageNumber * sizeNumber )
     }
 
     res.send({
-      totalPools,
-      page,
-      size,
+      totalPools: filterStatus === filterPool.all ? count : poolsFilter.length,
+      page: pageNumber,
+      size: sizeNumber,
       data: poolsFilter
     });
   } catch (error) {
@@ -389,7 +372,6 @@ app.get("/:network/factories", async (_req, res) => {
     const enrichedFactories = [];
 
     for (const factory of factories) {
-      console.log(factory.dataValues);
       const poolsAndOwners = [];
       for (const pool of factory.Pools) {
         poolsAndOwners.push({
